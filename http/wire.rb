@@ -476,8 +476,12 @@ module HTTP
       j = 0
       while j < want.bytesize
         a = @buf.getbyte(from + j)
-        a += 32 if fold && a >= 65 && a <= 90
-        return false unless a == want.getbyte(j)
+        b = want.getbyte(j)
+        if fold
+          a += 32 if a >= 65 && a <= 90
+          b += 32 if b >= 65 && b <= 90
+        end
+        return false unless a == b
         j += 1
       end
       true
