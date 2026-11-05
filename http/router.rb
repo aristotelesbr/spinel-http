@@ -207,7 +207,7 @@ module HTTP
       end
       run(area_steps(path), req, res) do
         raise NotFound if group.nil?
-        res.set_header("allow", group.allow)
+        res.header("allow", group.allow)
         if req.method == "OPTIONS"
           res.status = 204
         else
@@ -253,10 +253,11 @@ module HTTP
         yield
       rescue HTTP::Error => e
         error = e
-        HTTP.respond_error(res, e.status, e.message)
+        res.fail(e.status, e.message)
       rescue StandardError => e
         error = e
-        HTTP.respond_crash(res, "#{e.class}: #{e.message}")
+        warn "#{e.class}: #{e.message}"
+        res.fail(500, "internal server error")
       ensure
         i = opened - 1
         while i >= 0

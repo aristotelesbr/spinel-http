@@ -1,54 +1,31 @@
 require "socket"
 require "time"
 require_relative "errors"
+require_relative "wire"
 require_relative "request"
 require_relative "response"
-require_relative "connection"
 require_relative "router"
 require_relative "log"
 
 module HTTP
-  # Runs a handler; an HTTP::Error becomes its status, anything else a 500.
-  # (Status and message are read in the rescue itself: handing `e` to
-  # another method trips a Spinel dispatch bug, spinel-findings 178.)
-  def self.dispatch(handler, req, res)
-    handler.call(req, res)
-    nil
-  rescue HTTP::Error => e
-    HTTP.respond_error(res, e.status, e.message)
-  rescue StandardError => e
-    HTTP.respond_crash(res, "#{e.class}: #{e.message}")
-  end
-
-  # Replaces the response with the error's answer. Once the head is on the
-  # wire there is nothing left to replace: the connection closes.
-  def self.respond_error(res, status, message)
-    raise IOError, "response already started" if res.sent_head?
-    allow = res.header("allow")
-    res.replace(status, message)
-    res.set_header("allow", allow) unless allow.empty?
-    nil
-  end
-
-  def self.respond_crash(res, detail)
-    raise IOError, "response already started" if res.sent_head?
-    warn detail
-    res.replace(500, "internal server error")
-    nil
-  end
-
-  # Accepts connections and serves each one on its own thread. The handler is
-  # any object with `call(req, res)`.
+  # Serves an app: any object with `call(req, res)`. #listen accepts TCP
+  # connections and serves each on its own green thread; #serve serves one
+  # stream that is already open.
+  #
+  # An HTTP::Error raised by the app becomes its status; anything else a 500
+  # (with the detail on stderr). Both go through the errors object, which
+  # answers `call(status, message, res)`.
   class Server
     attr_reader :idle_timeout, :header_timeout, :max_header_bytes, :max_body_bytes, :port
 
-    def initialize(handler, host: "127.0.0.1", port: 8080, observer: nil,
+    def initialize(app, host: "127.0.0.1", port: 8080, observer: nil, errors: PlainErrors.new,
                    idle_timeout: 5.0, header_timeout: 10.0, shutdown_timeout: 10.0,
                    max_header_bytes: 8192, max_body_bytes: 1_048_576)
-      @handler = handler
+      @app = app
       @host = host
       @port = port
       @observer = observer
+      @errors = errors
       @idle_timeout = idle_timeout
       @header_timeout = header_timeout
       @shutdown_timeout = shutdown_timeout
@@ -64,14 +41,14 @@ module HTTP
     # Serves until #shutdown, SIGTERM or SIGINT; then waits for the requests
     # in progress. Yields the bound port once listening.
     def listen
-      @handler.prepare if @handler.respond_to?(:prepare)
+      @app.prepare if @app.respond_to?(:prepare)
       listener = TCPServer.new(@host, @port)
       @port = listener.addr[1]
       Signal.trap("TERM") { @stopping = true }
       Signal.trap("INT") { @stopping = true }
       yield @port if block_given?
       until @stopping
-        next if IO.select([listener], nil, nil, 0.2).nil?
+        next if listener.wait_readable(0.2).nil?
         spawn(listener.accept)
       end
       listener.close
@@ -87,10 +64,41 @@ module HTTP
     def spawn(sock)
       @lock.synchronize { @active += 1 }
       Thread.new do
-        Connection.new(sock, self).serve
+        serve(sock)
         @lock.synchronize { @active -= 1 }
       end
       nil
+    end
+
+    # Serves the requests of one open connection until either side closes,
+    # it goes quiet past idle_timeout, or the server stops.
+    def serve(sock)
+      wire = Wire.new(sock, self)
+      req = Request.new(wire)
+      res = Response.new(wire, self, @errors)
+      until @stopping
+        status = wire.read_head
+        break if status < 0
+        res.reset
+        if status > 0
+          wire.no_reuse
+          res.fail(status, HTTP.reason(status).downcase)
+          res.finish
+          break
+        end
+        req.reset
+        call_app(req, res)
+        break if res.taken?
+        wire.no_reuse if @stopping
+        wire.drain_body
+        res.finish
+        @observer&.finished(req, res)
+        break unless wire.keep_alive?
+      end
+    rescue IOError, SystemCallError
+      nil
+    ensure
+      sock.close unless res&.taken? || sock.closed?
     end
 
     def shutdown
@@ -100,24 +108,28 @@ module HTTP
 
     def stopping? = @stopping
 
-    def dispatch(req, res)
-      HTTP.dispatch(@handler, req, res)
-    end
-
-    def finished(req, res)
-      @observer&.finished(req, res)
-      nil
-    end
-
     # The Date header, formatted once a second.
     def date
-      t = Time.now
-      s = t.to_i
+      s = Process.clock_gettime(Process::CLOCK_REALTIME).to_i
       if s != @date_at
-        @date = t.httpdate
+        @date = Time.at(s).httpdate
         @date_at = s
       end
       @date
+    end
+
+    private
+
+    # (Status and message are read in the rescue itself: handing `e` to
+    # another method trips a Spinel dispatch bug, spinel-findings 178.)
+    def call_app(req, res)
+      @app.call(req, res)
+      nil
+    rescue HTTP::Error => e
+      res.fail(e.status, e.message)
+    rescue StandardError => e
+      warn "#{e.class}: #{e.message}"
+      res.fail(500, "internal server error")
     end
   end
 end
