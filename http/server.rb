@@ -36,7 +36,12 @@ module HTTP
       @lock = Mutex.new
       @date = ""
       @date_at = -1
+      @tick = 1
+      @wires = []
     end
+
+    # Advanced by the watchdog every header_timeout / 2 seconds.
+    def tick = @tick
 
     # Serves until #shutdown, SIGTERM or SIGINT; then waits for the requests
     # in progress. Yields the bound port once listening.
@@ -47,11 +52,13 @@ module HTTP
       Signal.trap("TERM") { @stopping = true }
       Signal.trap("INT") { @stopping = true }
       yield @port if block_given?
+      watchdog = Thread.new { watch }
       until @stopping
         next if listener.wait_readable(0.2).nil?
         spawn(listener.accept)
       end
       listener.close
+      watchdog.join
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @shutdown_timeout
       while @lock.synchronize { @active } > 0 && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
         sleep 0.05
@@ -74,6 +81,7 @@ module HTTP
     # it goes quiet past idle_timeout, or the server stops.
     def serve(sock)
       wire = Wire.new(sock, self)
+      @lock.synchronize { @wires << wire }
       req = Request.new(wire)
       res = Response.new(wire, self, @errors)
       until @stopping
@@ -99,6 +107,7 @@ module HTTP
     rescue IOError, SystemCallError
       nil
     ensure
+      @lock.synchronize { @wires.delete(wire) }
       sock.close unless res&.taken? || sock.closed?
     end
 
@@ -120,6 +129,24 @@ module HTTP
     end
 
     private
+
+    # Every header_timeout / 2: closes the connections whose write started
+    # two ticks ago or more, so a peer that does not read cannot hold one
+    # (the write raises IOError and the connection ends).
+    def watch
+      step = @header_timeout / 2
+      until @stopping
+        sleep step
+        @tick += 1
+        @lock.synchronize do
+          @wires.each do |w|
+            since = w.writing_since
+            w.sock.close if since > 0 && @tick - since >= 2 && !w.sock.closed?
+          end
+        end
+      end
+      nil
+    end
 
     # (Status and message are read in the rescue itself: handing `e` to
     # another method trips a Spinel dispatch bug, spinel-findings 178.)

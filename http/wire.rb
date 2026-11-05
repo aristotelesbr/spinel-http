@@ -38,7 +38,11 @@ module HTTP
       @body_from = 0.0
       @state = 0
       @raw = false
+      @writing_since = 0
     end
+
+    # The server's tick a write in progress started in; 0 when none is.
+    def writing_since = @writing_since
 
     # Reads the next head. 0 when it is in, -1 when the peer closed or went
     # quiet (close without answering), or the status to answer before
@@ -80,7 +84,7 @@ module HTTP
 
     # The value of a header as a new String, "" when absent.
     def header(name)
-      k = find(name, 0)
+      k = find(name.to_s, 0)
       k < 0 ? "" : @buf.byteslice(@offs[k + 2], @offs[k + 3] - @offs[k + 2])
     end
 
@@ -186,17 +190,14 @@ module HTTP
 
     private
 
-    # Writes all of `data`, waiting at most header_timeout each time the
-    # peer stops reading; IOError when it does not read in time.
+    # Writes all of `data`. The deadline is kept off this path: the write
+    # notes the server's tick it started in, and the server's watchdog
+    # closes a connection whose write has spanned two ticks (a peer that
+    # stopped reading), which makes this write raise IOError.
     def send_all(data)
-      n = @sock.write_nonblock(data, exception: false)
-      return nil if n.is_a?(Integer) && n == data.bytesize
-      sent = n.is_a?(Integer) ? n : 0
-      while sent < data.bytesize
-        raise IOError, "write timeout" if @sock.wait_writable(@limits.header_timeout).nil?
-        n = @sock.write_nonblock(data.byteslice(sent, data.bytesize - sent), exception: false)
-        sent += n if n.is_a?(Integer)
-      end
+      @writing_since = @limits.tick
+      @sock.write(data)
+      @writing_since = 0
       nil
     end
 
