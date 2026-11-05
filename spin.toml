@@ -1,0 +1,7 @@
+[package]
+name = "http"
+
+# `require "http/server"` -- an HTTP/1.1 server in pure Ruby over TCPServer:
+# one green thread per connection, a single handler interface
+# (`call(req, res)`), a router, guards and an access log. Runs unchanged on
+# CRuby, which the tests use as the oracle.
