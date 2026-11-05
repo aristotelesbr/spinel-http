@@ -11,7 +11,7 @@ module HTTP
 
   # A path pattern split at boot: literal segments and {param} segments.
   class Pattern
-    attr_reader :text, :rank
+    attr_reader :text
 
     def initialize(text)
       @text = text
@@ -27,31 +27,9 @@ module HTTP
           @names << ""
         end
       end
-      # literal before param, position by position
-      @rank = @names.map { |n| n.empty? ? "0" : "1" }.join
     end
 
-    # Matches without allocating: walks the path segment by segment.
-    def match?(path)
-      return false unless path.getbyte(0) == 47
-      pos = 1
-      i = 0
-      n = @segs.size
-      return path.size == 1 if n == 0
-      while i < n
-        return false if pos >= path.size
-        stop = path.index("/", pos) || path.size
-        len = stop - pos
-        return false if len == 0
-        lit = @segs[i]
-        if @names[i].empty?
-          return false unless len == lit.size && path.index(lit, pos) == pos
-        end
-        pos = stop + 1
-        i += 1
-      end
-      pos >= path.size + 1
-    end
+    def params? = @names.any? { |n| !n.empty? }
 
     def extract(path, req)
       pos = 1
@@ -123,6 +101,108 @@ module HTTP
     end
   end
 
+  # The routes with {params}, as a radix tree: each node holds a run of
+  # literal bytes, children are picked by their first byte, and a param
+  # child takes the bytes up to the next "/". A literal child is tried
+  # before the param one. Looking a path up builds no String; the time
+  # grows with the path, not with the number of routes.
+  class Radix
+    attr_accessor :prefix, :value
+
+    def initialize(prefix)
+      @prefix = prefix
+      @first = [0]
+      @first.clear
+      @kids = [self]
+      @kids.clear
+      @param = nil
+      @value = -1
+    end
+
+    # Adds a pattern ("/posts/{id}/comments") ending in `value`.
+    def add(text, value)
+      node = self
+      pos = 0
+      while pos < text.bytesize
+        open = text.index("{", pos) || text.bytesize
+        node = node.insert(text.byteslice(pos, open - pos)) if open > pos
+        break if open == text.bytesize
+        node = node.param_node
+        pos = text.index("}", open) + 1
+      end
+      node.value = value
+      nil
+    end
+
+    def insert(lit)
+      return self if lit.empty?
+      b = lit.getbyte(0)
+      k = @first.index(b)
+      if k.nil?
+        n = Radix.new(lit)
+        @first << b
+        @kids << n
+        return n
+      end
+      child = @kids[k]
+      common = 0
+      max = child.prefix.bytesize < lit.bytesize ? child.prefix.bytesize : lit.bytesize
+      common += 1 while common < max && child.prefix.getbyte(common) == lit.getbyte(common)
+      if common < child.prefix.bytesize
+        mid = Radix.new(child.prefix.byteslice(0, common))
+        child.prefix = child.prefix.byteslice(common, child.prefix.bytesize - common)
+        mid.adopt(child)
+        @kids[k] = mid
+        child = mid
+      end
+      child.insert(lit.byteslice(common, lit.bytesize - common))
+    end
+
+    def adopt(n)
+      @first << n.prefix.getbyte(0)
+      @kids << n
+      nil
+    end
+
+    def param_node
+      @param = Radix.new("") if @param.nil?
+      @param
+    end
+
+    # The value of the route matching path[pos..], -1 when none does.
+    def lookup(path, pos)
+      plen = @prefix.bytesize
+      return -1 if path.bytesize - pos < plen
+      i = 0
+      while i < plen
+        return -1 unless path.getbyte(pos + i) == @prefix.getbyte(i)
+        i += 1
+      end
+      pos += plen
+      return @value if pos == path.bytesize && @value >= 0
+      if pos < path.bytesize
+        v = lookup_kids(path, pos)
+        return v if v >= 0
+      end
+      return -1 if @param.nil? || pos == path.bytesize
+      stop = pos
+      stop += 1 while stop < path.bytesize && path.getbyte(stop) != 47
+      return -1 if stop == pos
+      return @param.value if stop == path.bytesize
+      @param.lookup_kids(path, stop)
+    end
+
+    def lookup_kids(path, pos)
+      b = path.getbyte(pos)
+      k = 0
+      while k < @first.size
+        return @kids[k].lookup(path, pos) if @first[k] == b
+        k += 1
+      end
+      -1
+    end
+  end
+
   # routes.handle "GET /posts/{id}", Guard.new, ..., Handler.new
   # routes.use "/admin", Guard.new, except: ["POST /admin/login"]
   class Router
@@ -133,6 +213,10 @@ module HTTP
       @inline = []
       @areas = []
       @no_steps = []
+      @exact = { "" => PathGroup.new(Pattern.new("")) }
+      @exact.clear
+      @tree = Radix.new("")
+      @param_groups = []
       @ready = false
     end
 
@@ -184,7 +268,14 @@ module HTTP
       @areas.each do |area|
         @areas.each { |other| area.covering << other.step if Router.covers?(other.prefix, area.prefix) }
       end
-      @groups = @groups.sort_by { |g| g.pattern.rank }
+      @groups.each do |group|
+        if group.pattern.params?
+          @tree.add(group.pattern.text, @param_groups.size)
+          @param_groups << group
+        else
+          @exact[group.pattern.text] = group
+        end
+      end
       @ready = true
       nil
     end
@@ -192,12 +283,10 @@ module HTTP
     def call(req, res)
       prepare unless @ready # (the server prepares before accepting)
       path = req.path
-      group = nil
-      @groups.each do |g|
-        if g.pattern.match?(path)
-          group = g
-          break
-        end
+      group = @exact[path]
+      if group.nil?
+        k = @tree.lookup(path, 0)
+        group = @param_groups[k] if k >= 0
       end
       route = group&.route_for(req.method)
       if route

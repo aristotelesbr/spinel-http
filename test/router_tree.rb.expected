@@ -1,0 +1,17 @@
+/ -> 200 root id= cid= slug=
+/posts -> 200 index id= cid= slug=
+/posts/ -> 404 not found
+/posts/new -> 200 new id= cid= slug=
+/posts/new/preview -> 200 preview id= cid= slug=
+/posts/new/edit -> 200 edit id=new cid= slug=
+/posts/7 -> 200 show id=7 cid= slug=
+/posts/7/edit -> 200 edit id=7 cid= slug=
+/posts/7/comments/3 -> 200 comment id=7 cid=3 slug=
+/posts/7/comments -> 404 not found
+/posts/7/comments/3/x -> 404 not found
+/pages/about -> 200 page id= cid= slug=about
+/pages/about/team -> 200 team id= cid= slug=
+/pages/about/x -> 404 not found
+/nope -> 404 not found
+/postsx -> 404 not found
+/posts//edit -> 404 not found
