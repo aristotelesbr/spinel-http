@@ -7,6 +7,8 @@ module HTTP
   #   res.status  # => 200
   #   res.body    # => "Hello, Spinel\n"
   #
+  #   HTTP::Testing.raw(app, "GET / HTTP/1.1\r\n\r\n")  # => what the server wrote
+  #
   # Goes through a loopback socket and the real server, so the request
   # meets the same parser and limits as in production.
   module Testing
@@ -25,22 +27,28 @@ module HTTP
     def self.request(app, line, headers: {}, body: "", server: nil)
       space = line.index(" ")
       raise ArgumentError, "request needs a verb: #{line.inspect}" if space.nil?
+      raw = +"#{line} HTTP/1.1\r\nhost: test\r\nconnection: close\r\n"
+      headers.each { |k, v| raw << k << ": " << v << "\r\n" }
+      raw << "content-length: " << body.bytesize.to_s << "\r\n" unless body.empty?
+      raw << "\r\n" << body
+      parse(raw(app, raw, server: server), line.start_with?("HEAD "))
+    end
+
+    # Sends `data` as it is (any bytes, any number of requests) and returns
+    # everything the server wrote until it closed the connection.
+    def self.raw(app, data, server: nil)
       app.prepare if app.respond_to?(:prepare)
       server ||= Server.new(app)
       listener = TCPServer.new("127.0.0.1", 0)
       port = listener.addr[1]
       thread = Thread.new(listener) { |l| server.serve(l.accept) }
       client = TCPSocket.new("127.0.0.1", port)
-      raw = +"#{line} HTTP/1.1\r\nhost: test\r\nconnection: close\r\n"
-      headers.each { |k, v| raw << k << ": " << v << "\r\n" }
-      raw << "content-length: " << body.bytesize.to_s << "\r\n" unless body.empty?
-      raw << "\r\n" << body
-      client.write(raw)
+      client.write(data)
       answer = client.read
       client.close
       thread.join
       listener.close
-      parse(answer, line.start_with?("HEAD "))
+      answer
     end
 
     def self.parse(answer, head)
