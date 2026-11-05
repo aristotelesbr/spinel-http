@@ -112,15 +112,16 @@ module HTTP
 
     def chunk = @chunk
 
-    # Reads what is left of the body so the next request starts clean; on
-    # any trouble the connection is not reused.
+    # Reads what is left of the body so the next request starts clean. 0
+    # when it did; otherwise the status the body deserves (400, 408, 413),
+    # and the connection is not reused.
     def drain_body
       while read_body_chunk > 0
       end
-      nil
-    rescue HTTP::Error
+      0
+    rescue HTTP::Error => e
       @keep = false
-      nil
+      e.status
     end
 
     # The head of a response. length -1 means chunked, -2 a head before the

@@ -90,7 +90,8 @@ module HTTP
         call_app(req, res)
         break if res.taken?
         wire.no_reuse if @stopping
-        wire.drain_body
+        bad = wire.drain_body
+        res.fail(bad, HTTP.reason(bad).downcase) if bad > 0 && !res.sent?
         res.finish
         @observer&.finished(req, res)
         break unless wire.keep_alive?
