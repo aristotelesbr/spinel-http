@@ -253,10 +253,10 @@ module HTTP
         yield
       rescue HTTP::Error => e
         error = e
-        HTTP.respond_error(res, e)
+        HTTP.respond_error(res, e.status, e.message)
       rescue StandardError => e
         error = e
-        HTTP.respond_crash(res, e)
+        HTTP.respond_crash(res, "#{e.class}: #{e.message}")
       ensure
         i = opened - 1
         while i >= 0

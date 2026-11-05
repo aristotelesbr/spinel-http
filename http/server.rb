@@ -9,28 +9,30 @@ require_relative "log"
 
 module HTTP
   # Runs a handler; an HTTP::Error becomes its status, anything else a 500.
+  # (Status and message are read in the rescue itself: handing `e` to
+  # another method trips a Spinel dispatch bug, spinel-findings 178.)
   def self.dispatch(handler, req, res)
     handler.call(req, res)
     nil
   rescue HTTP::Error => e
-    HTTP.respond_error(res, e)
+    HTTP.respond_error(res, e.status, e.message)
   rescue StandardError => e
-    HTTP.respond_crash(res, e)
+    HTTP.respond_crash(res, "#{e.class}: #{e.message}")
   end
 
   # Replaces the response with the error's answer. Once the head is on the
   # wire there is nothing left to replace: the connection closes.
-  def self.respond_error(res, e)
+  def self.respond_error(res, status, message)
     raise IOError, "response already started" if res.sent_head?
     allow = res.header("allow")
-    res.replace(e.status, e.message)
+    res.replace(status, message)
     res.set_header("allow", allow) unless allow.empty?
     nil
   end
 
-  def self.respond_crash(res, e)
+  def self.respond_crash(res, detail)
     raise IOError, "response already started" if res.sent_head?
-    warn "#{e.class}: #{e.message}"
+    warn detail
     res.replace(500, "internal server error")
     nil
   end
