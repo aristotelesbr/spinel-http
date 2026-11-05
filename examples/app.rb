@@ -85,7 +85,7 @@ class Transaction
   def check(req, res) = nil
 
   def after(req, res, error)
-    res.set_header("x-tx", error.nil? && res.status < 400 ? "commit" : "rollback") unless res.sent_head?
+    res.header("x-tx", error.nil? && res.status < 400 ? "commit" : "rollback") unless res.sent?
     nil
   end
 end
