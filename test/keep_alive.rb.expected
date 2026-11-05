@@ -1,0 +1,4 @@
+200 OK | x-seen: first | content-type: text/plain; charset=utf-8 | content-length: 7 | connection: keep-alive || "GET /a\n"
+200 OK | content-type: text/plain; charset=utf-8 | content-length: 8 | connection: keep-alive || "POST /b\n"
+200 OK | content-type: text/plain; charset=utf-8 | content-length: 7 | connection: close || "GET /c\n"
+true

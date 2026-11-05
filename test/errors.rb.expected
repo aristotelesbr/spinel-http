@@ -1,0 +1,7 @@
+ArgumentError: secret detail
+RuntimeError: after the head
+/missing 404 text/plain; charset=utf-8 "no post 9\n"
+/invalid 422 text/plain; charset=utf-8 "empty body\n"
+/crash 500 text/plain; charset=utf-8 "internal server error\n"
+json 404 application/json "{\"status\":404,\"error\":\"no post 9\"}\n"
+late: true no_500=true terminated=false

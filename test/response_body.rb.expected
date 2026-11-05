@@ -1,0 +1,12 @@
+201
+7
+text/plain; charset=utf-8
+8
+"id 7-42\n"
+sent? true
+chunked
+text/event-stream
+"data: 1\n\ndata: 2\n\n"
+201
+8
+""

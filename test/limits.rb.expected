@@ -1,0 +1,17 @@
+valid: 200 close
+two content-length: 400 close
+length and chunked: 400 close
+space before colon: 400 close
+control byte: 400 close
+bare LF: 400 close
+folded line: 400 close
+no host: 400 close
+two hosts: 400 close
+lowercase method: 400 close
+unknown method: 501 close
+gzip coding: 501 close
+version 2.0: 505 close
+plus length: 400 close
+13-digit length: 413 close
+huge chunk size: 413 close
+head too large: 431 close

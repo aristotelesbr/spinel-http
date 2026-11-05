@@ -1,0 +1,9 @@
+200
+GET /posts/1 q=x=1&y=2 target=/posts/1?x=1&y=2 HTTP/1.1
+accept=text/plain missing=""
+has_accept=true length=0
+names=host,connection,Accept
+POST /up q= target=/up HTTP/1.1
+accept= missing=""
+has_accept=false length=5
+names=host,connection,content-length
