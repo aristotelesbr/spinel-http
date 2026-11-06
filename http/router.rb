@@ -316,7 +316,11 @@ module HTTP
     end
 
     def add_scope(parent, path)
-      scope = Scope.new(self, parent.join(path), parent)
+      prefix = parent.join(path)
+      raise ArgumentError, "namespace \"/\" is the router itself: use its #use" if prefix == "/"
+      raise ArgumentError, "namespace #{prefix.inspect} ends in /" if prefix.end_with?("/")
+      raise ArgumentError, "namespace #{prefix.inspect} is already open" if @scopes.any? { |s| s.prefix == prefix }
+      scope = Scope.new(self, prefix, parent)
       @scopes << scope
       scope
     end

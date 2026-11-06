@@ -174,5 +174,9 @@ refused { more.get "posts", Show.new }
 refused { more.get "/a/:", Show.new }
 more.get "/a", Show.new
 refused { more.get "/a", Show.new }
+refused { more.namespace("/") { |s| s.get "/x", Show.new } }
+refused { more.namespace("/b/") { |s| s.get "/x", Show.new } }
+more.namespace("/c") { |s| s.get "/x", Show.new }
+refused { more.namespace("/c") { |s| s.get "/y", Show.new } }
 more.prepare
 refused { more.get "/b", Show.new }
