@@ -1,8 +1,52 @@
 module HTTP
+  # Whether s is the lowercase name `lower`, compared without regard to case.
+  def self.named?(s, lower)
+    return false unless s.bytesize == lower.bytesize
+    i = 0
+    while i < s.bytesize
+      c = s.getbyte(i)
+      c += 32 if c >= 65 && c <= 90
+      return false unless c == lower.getbyte(i)
+      i += 1
+    end
+    true
+  end
+
+  # A header name: one or more token characters (RFC 9110 5.6.2).
+  def self.token?(s)
+    return false if s.empty?
+    i = 0
+    while i < s.bytesize
+      c = s.getbyte(i)
+      ok = (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) ||
+           c == 33 || (c >= 35 && c <= 39) || c == 42 || c == 43 || c == 45 || c == 46 ||
+           c == 94 || c == 95 || c == 96 || c == 124 || c == 126
+      return false unless ok
+      i += 1
+    end
+    true
+  end
+
+  # A header value: no control bytes but tab (so no CR or LF to end the
+  # line early and start a header of the client's choosing).
+  def self.field_value?(s)
+    i = 0
+    while i < s.bytesize
+      c = s.getbyte(i)
+      return false if (c < 32 && c != 9) || c == 127
+      i += 1
+    end
+    true
+  end
+
   # The answer being built: status, headers and a body buffer, reused for
   # every request of the connection. Without #flush the server sends it
   # whole, with Content-Length. #flush (or a buffer past 64 KB) sends the
   # head and what is buffered, and from then on every write streams.
+  #
+  # The server owns how the body is framed and the connection: the app
+  # cannot set content-length or transfer-encoding, "connection: close"
+  # asks the server to close after this answer.
   class Response
     LIMIT = 65536
 
@@ -25,6 +69,8 @@ module HTTP
       @taken = false
       @halted = false
       @error = nil
+      @own_date = false
+      @own_connection = false
     end
 
     def reset
@@ -37,6 +83,8 @@ module HTTP
       @taken = false
       @halted = false
       @error = nil
+      @own_date = false
+      @own_connection = false
       nil
     end
 
@@ -46,8 +94,24 @@ module HTTP
     end
 
     # Adds a header; names go out as given (lowercase is the convention).
+    # ArgumentError for a name that is not a token, a value with a control
+    # byte (CR, LF...), or a header that frames the body. A date replaces
+    # the server's.
     def header(name, value)
       raise IOError, "headers already sent" if @sent
+      if HTTP.named?(name, "content-length") || HTTP.named?(name, "transfer-encoding")
+        raise ArgumentError, "#{name} is set by the server"
+      end
+      raise ArgumentError, "bad header name #{name.inspect}" unless HTTP.token?(name)
+      raise ArgumentError, "bad byte in the value of #{name}" unless HTTP.field_value?(value)
+      if HTTP.named?(name, "connection")
+        if HTTP.named?(value, "close")
+          @wire.no_reuse
+          return nil
+        end
+        @own_connection = true
+      end
+      @own_date = true if HTTP.named?(name, "date")
       @headers << name << value
       nil
     end
@@ -112,7 +176,7 @@ module HTTP
 
     # Writes text, setting a text/plain content type if none was set.
     def text(s)
-      header("content-type", "text/plain; charset=utf-8") unless @sent || header?("content-type")
+      @headers << "content-type" << "text/plain; charset=utf-8" unless @sent || header?("content-type") # (known good: no checks)
       write(s)
     end
 
@@ -121,7 +185,7 @@ module HTTP
       unless @sent
         @sent = true
         @streaming = true
-        @wire.write_head(@status, @headers, -1, @server.date)
+        @wire.write_head(@status, @headers, -1, date, @own_connection)
       end
       @wire.write_chunk(@body) unless @wire.head_only?
       @body.replace("")
@@ -148,7 +212,7 @@ module HTTP
       raise IOError, "head already sent" if @sent
       @sent = true
       @taken = true
-      @wire.write_head(@status, @headers, -2, @server.date)
+      @wire.write_head(@status, @headers, -2, date, @own_connection)
       @wire.sock
     end
 
@@ -159,6 +223,8 @@ module HTTP
       allow = +""
       allow << header_value("allow")
       @headers.clear
+      @own_date = false
+      @own_connection = false
       @body.replace("")
       @bytes_written = 0
       @status = status
@@ -173,11 +239,16 @@ module HTTP
         @wire.write_chunk(@body) unless @wire.head_only?
         @wire.end_chunks unless @wire.head_only?
       else
-        @wire.write_head(@status, @headers, @body.bytesize, @server.date)
+        @wire.write_head(@status, @headers, @body.bytesize, date, @own_connection)
         @wire.write(@body) unless @wire.head_only?
       end
       nil
     end
+
+    private
+
+    # The server's Date, or "" when the app set its own.
+    def date = @own_date ? "" : @server.date
   end
 
   # The default errors object: the message as plain text.

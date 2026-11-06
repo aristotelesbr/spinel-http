@@ -133,8 +133,10 @@ module HTTP
 
     # The head of a response. length -1 means chunked, -2 a head before the
     # socket is handed over (no length, no connection header), -3 a body
-    # sent until the connection closes (HTTP/1.0 streaming).
-    def write_head(status, headers, length, date)
+    # sent until the connection closes (HTTP/1.0 streaming). date "" leaves
+    # out the server's (the app set its own), and so does own_connection
+    # with the connection header.
+    def write_head(status, headers, length, date, own_connection)
       @out.replace("HTTP/1.1 ")
       append_int(@out, status)
       @out << " " << HTTP.reason(status) << "\r\n"
@@ -143,7 +145,7 @@ module HTTP
         @out << headers[i] << ": " << headers[i + 1] << "\r\n"
         i += 2
       end
-      @out << "date: " << date << "\r\n"
+      @out << "date: " << date << "\r\n" unless date.empty?
       if length == -2
         @out << "\r\n"
         send_all(@out)
@@ -162,7 +164,8 @@ module HTTP
         append_int(@out, length)
         @out << "\r\n"
       end
-      @out << (@keep ? "connection: keep-alive\r\n\r\n" : "connection: close\r\n\r\n")
+      @out << (@keep ? "connection: keep-alive\r\n" : "connection: close\r\n") unless own_connection
+      @out << "\r\n"
       send_all(@out)
       nil
     end
