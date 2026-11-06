@@ -408,10 +408,22 @@ module HTTP
         i = opened - 1
         while i >= 0
           step = steps[i]
-          step.layer.after(req, res) if step.closes
+          close(step.layer, req, res) if step.closes
           i -= 1
         end
       end
+      nil
+    end
+
+    # One after; if it raises, the response becomes the error (when it can
+    # still change) and the afters further out run all the same.
+    def close(layer, req, res)
+      layer.after(req, res)
+      nil
+    rescue StandardError => e
+      warn "#{e.class}: #{e.message}"
+      res.error = e if res.error.nil?
+      res.fail(500, "internal server error") unless res.sent?
       nil
     end
   end

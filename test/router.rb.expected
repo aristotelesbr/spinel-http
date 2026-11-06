@@ -1,4 +1,5 @@
 RuntimeError: boom
+RuntimeError: after blew up
 200 tag=1 allow= tx= etag= "post 42\n"
 404 tag=1 allow= tx= etag= "not found\n"
 405 tag=1 allow=GET, HEAD, OPTIONS tx= etag= "method not allowed\n"
@@ -12,6 +13,7 @@ RuntimeError: boom
 304 tag=1 allow= tx= etag=v1 ""
 204 tag=1 allow= tx= etag= ""
 200 tag=1 allow= tx= etag= "page built\n"
+500 tag=1 allow= tx=rollback (after blew up) etag= "internal server error\n"
 401 tag=1 allow= tx= etag= "unauthorized\n"
 200 tag=1 allow= tx= etag= "admin ana\n"
 401 tag=1 allow= tx= etag= "unauthorized\n"

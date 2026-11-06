@@ -1,7 +1,8 @@
 # The router: verb methods, :params, 404, 405 with Allow, OPTIONS, HEAD,
 # layers with before/after on the router, on namespaces (nested) and on
 # one route, afters seeing the final status and res.error, a before that
-# answers with res.halt, and req.context.
+# answers with res.halt, an after that raises (the outer afters still
+# run), and req.context.
 require "http/testing"
 
 class Show
@@ -92,6 +93,10 @@ class Page
   def call(req, res) = res.text("page built\n")
 end
 
+class Explodes
+  def after(req, res) = raise("after blew up")
+end
+
 # Answers a preflight itself, keeping the status it set (no argument).
 class Preflight
   def before(req, res)
@@ -110,6 +115,7 @@ routes.post "/boom", Boom.new, use: [Tx.new]
 routes.post "/admin/login", Login.new
 routes.get "/page", Page.new, use: [Cache.new, Tx.new]
 routes.post "/api", Page.new, use: [Preflight.new]
+routes.get "/fragile", Page.new, use: [Tx.new, Explodes.new]
 routes.namespace "/admin", use: [Token.new] do |admin|
   admin.get "/", Dashboard.new
   admin.namespace "/reports", use: [Role.new("finance")] do |reports|
@@ -132,6 +138,7 @@ show HTTP::Testing.request(routes, "GET /page")
 show HTTP::Testing.request(routes, "GET /page", headers: { "if-none-match" => "v1" })
 show HTTP::Testing.request(routes, "POST /api", headers: { "access-control-request-method" => "POST" })
 show HTTP::Testing.request(routes, "POST /api")
+show HTTP::Testing.request(routes, "GET /fragile")
 show HTTP::Testing.request(routes, "GET /admin")
 show HTTP::Testing.request(routes, "GET /admin", headers: { "authorization" => "Bearer t" })
 show HTTP::Testing.request(routes, "GET /admin/nothing")
