@@ -184,10 +184,12 @@ module HTTP
     # socket is handed over (no length, no connection header), -3 a body
     # sent until the connection closes (HTTP/1.0 streaming), -4 no body at
     # all (1xx, 204, 304). date "" leaves out the server's (the app set its
-    # own), and so does own_connection with the connection header. Once a
-    # final answer is out, a pending "100 Continue" is not sent any more
-    # and the body it held back will not come: the connection closes.
-    def write_head(status, headers, length, date, own_connection)
+    # own), and so does own_connection with the connection header. With
+    # with_body, body goes out with the head, in the same write when it
+    # fits in OUT_INLINE. Once a final answer is out, a pending "100
+    # Continue" is not sent any more and the body it held back will not
+    # come: the connection closes.
+    def write_head(status, headers, length, date, own_connection, body, with_body)
       if @continue
         @continue = false
         @keep = false
@@ -223,12 +225,15 @@ module HTTP
       end
       @out << (@keep ? "connection: keep-alive\r\n" : "connection: close\r\n") unless own_connection
       @out << "\r\n"
-      send_all(@out)
-      nil
-    end
-
-    def write(data)
-      send_all(data) unless data.empty?
+      if !with_body || body.empty?
+        send_all(@out)
+      elsif body.bytesize <= OUT_INLINE
+        @out << body
+        send_all(@out)
+      else
+        send_all(@out)
+        send_all(body)
+      end
       nil
     end
 

@@ -188,7 +188,7 @@ module HTTP
       unless @sent
         @sent = true
         @streaming = true
-        @wire.write_head(@status, @headers, no_body? ? -4 : -1, date, @own_connection)
+        @wire.write_head(@status, @headers, no_body? ? -4 : -1, date, @own_connection, @body, false)
       end
       @wire.write_chunk(@body) unless silent?
       @body.replace("")
@@ -218,7 +218,7 @@ module HTTP
       raise IOError, "head already sent" if @sent
       @sent = true
       @taken = true
-      @wire.write_head(@status, @headers, -2, date, @own_connection)
+      @wire.write_head(@status, @headers, -2, date, @own_connection, @body, false)
       @wire.sock
     end
 
@@ -247,10 +247,9 @@ module HTTP
           @wire.end_chunks
         end
       elsif no_body?
-        @wire.write_head(@status, @headers, -4, date, @own_connection)
+        @wire.write_head(@status, @headers, -4, date, @own_connection, @body, false)
       else
-        @wire.write_head(@status, @headers, @body.bytesize, date, @own_connection)
-        @wire.write(@body) unless @wire.head_only?
+        @wire.write_head(@status, @headers, @body.bytesize, date, @own_connection, @body, !@wire.head_only?)
       end
       nil
     end
