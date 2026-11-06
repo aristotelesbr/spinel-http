@@ -20,3 +20,14 @@ refused 400: more than 3 fields
 accepted
 true
 after parse: size=1 q="" b=2
+200 q=ruby spinel page=2 tags=a,b
+200 q= page=1 tags=
+400 page is not an integer
+400 bad %-escape
+400 more than 1000 fields
+200 name=Ana Maria age=30 fields=2 from=ad
+200 name=Bo age=0 fields=1 from=
+200 name= age=0 fields=0 from=
+400 age is not an integer
+q=first page=1 tags=x
+q= page=1 tags=

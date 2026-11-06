@@ -1,3 +1,5 @@
+require_relative "params"
+
 module HTTP
   # Seconds on the monotonic clock: the one req.started_at is read from,
   # so HTTP.now - req.started_at is the time spent on the request so far.
@@ -23,6 +25,10 @@ module HTTP
       @body_read = false
       @context = nil
       @started_at = 0.0
+      @query_params = Params.new
+      @form_params = Params.new
+      @query_parsed = false
+      @form_parsed = false
     end
 
     def reset
@@ -37,6 +43,8 @@ module HTTP
       @body.replace("")
       @body_read = false
       @context = nil
+      @query_parsed = false
+      @form_parsed = false
       nil
     end
 
@@ -83,6 +91,30 @@ module HTTP
     def add_param(name, value)
       @params[name] = value
       nil
+    end
+
+    # The fields of the query string, decoded on first use (HTTP::Params,
+    # valid for this request).
+    def query_params
+      unless @query_parsed
+        @query_parsed = true
+        @query_params.parse(query)
+      end
+      @query_params
+    end
+
+    # The fields of an application/x-www-form-urlencoded body, read and
+    # decoded on first use; none for any other content type.
+    def form_params
+      unless @form_parsed
+        @form_parsed = true
+        if header("content-type").downcase.start_with?("application/x-www-form-urlencoded")
+          @form_params.parse(body)
+        else
+          @form_params.parse("")
+        end
+      end
+      @form_params
     end
 
     # A :name segment of the route that matched; "" when absent.
