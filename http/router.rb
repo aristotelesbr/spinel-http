@@ -366,11 +366,24 @@ module HTTP
       nil
     end
 
-    # "/api" covers "/api" and "/api/...", not "/apix"; "" covers all.
+    # "/api" covers "/api" and "/api/...", not "/apix"; "" covers all; a
+    # :param segment of the prefix covers any non-empty segment.
     def self.covers?(prefix, path)
-      return true if prefix.empty?
-      return false unless path.start_with?(prefix)
-      path.size == prefix.size || path.getbyte(prefix.size) == 47
+      i = 0
+      j = 0
+      while i < prefix.bytesize
+        if prefix.getbyte(i) == 58 && prefix.getbyte(i - 1) == 47
+          i += 1 while i < prefix.bytesize && prefix.getbyte(i) != 47
+          from = j
+          j += 1 while j < path.bytesize && path.getbyte(j) != 47
+          return false if j == from
+        else
+          return false unless j < path.bytesize && path.getbyte(j) == prefix.getbyte(i)
+          i += 1
+          j += 1
+        end
+      end
+      j == path.bytesize || path.getbyte(j) == 47
     end
 
     private
