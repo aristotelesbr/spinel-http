@@ -73,7 +73,7 @@ class Dashboard
 end
 
 class RequireToken
-  def check(req, res)
+  def before(req, res)
     raise HTTP::Unauthorized unless req.header("authorization") == "Bearer secret"
     req.context = Session.new("admin")
     nil
@@ -82,27 +82,25 @@ end
 
 # Marks the response with what a transaction would do.
 class Transaction
-  def check(req, res) = nil
-
-  def after(req, res, error)
-    res.header("x-tx", error.nil? && res.status < 400 ? "commit" : "rollback") unless res.sent?
+  def after(req, res)
+    res.header("x-tx", res.status < 400 ? "commit" : "rollback") unless res.sent?
     nil
   end
 end
 
 routes = HTTP::Router.new
-routes.use "/admin", RequireToken.new, except: ["POST /admin/login"]
-
-routes.handle "GET /",              Home.new
-routes.handle "GET /posts/new",     NewPost.new
-routes.handle "GET /posts/{id}",    ShowPost.new
-routes.handle "POST /posts",        Transaction.new, CreatePost.new
-routes.handle "GET /big",           Big.new
-routes.handle "GET /boom",          Boom.new
-routes.handle "GET /slow",          Slow.new
-routes.handle "GET /count",         Counter.new
-routes.handle "POST /admin/login",  Login.new
-routes.handle "GET /admin",         Dashboard.new
+routes.get "/", Home.new
+routes.get "/posts/new", NewPost.new
+routes.get "/posts/:id", ShowPost.new
+routes.post "/posts", CreatePost.new, use: [Transaction.new]
+routes.get "/big", Big.new
+routes.get "/boom", Boom.new
+routes.get "/slow", Slow.new
+routes.get "/count", Counter.new
+routes.post "/admin/login", Login.new
+routes.namespace "/admin", use: [RequireToken.new] do |admin|
+  admin.get "/", Dashboard.new
+end
 
 server = HTTP::Server.new(routes,
   port: ENV.fetch("PORT", "8080").to_i,

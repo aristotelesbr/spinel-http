@@ -1,5 +1,5 @@
 # Route lookup: an exact path wins over a pattern, a literal segment over
-# a {param} at the same place (falling back to the param when the literal
+# a :param at the same place (falling back to the param when the literal
 # branch has no route), params nest, and "/" and trailing slashes match
 # only what is registered.
 require "http/testing"
@@ -15,15 +15,15 @@ class Name
 end
 
 routes = HTTP::Router.new
-routes.handle "GET /", Name.new("root")
-routes.handle "GET /posts", Name.new("index")
-routes.handle "GET /posts/new", Name.new("new")
-routes.handle "GET /posts/new/preview", Name.new("preview")
-routes.handle "GET /posts/{id}", Name.new("show")
-routes.handle "GET /posts/{id}/edit", Name.new("edit")
-routes.handle "GET /posts/{id}/comments/{cid}", Name.new("comment")
-routes.handle "GET /pages/{slug}", Name.new("page")
-routes.handle "GET /pages/about/team", Name.new("team")
+routes.get "/", Name.new("root")
+routes.get "/posts", Name.new("index")
+routes.get "/posts/new", Name.new("new")
+routes.get "/posts/new/preview", Name.new("preview")
+routes.get "/posts/:id", Name.new("show")
+routes.get "/posts/:id/edit", Name.new("edit")
+routes.get "/posts/:id/comments/:cid", Name.new("comment")
+routes.get "/pages/:slug", Name.new("page")
+routes.get "/pages/about/team", Name.new("team")
 
 ["/", "/posts", "/posts/", "/posts/new", "/posts/new/preview", "/posts/new/edit",
  "/posts/7", "/posts/7/edit", "/posts/7/comments/3", "/posts/7/comments",

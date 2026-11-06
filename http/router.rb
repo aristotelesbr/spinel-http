@@ -1,15 +1,17 @@
 module HTTP
-  # A guard plus whether it has `after`, decided at boot.
+  # A layer plus which of `before` and `after` it has, decided at boot.
   class Step
-    attr_reader :guard, :closes
+    attr_reader :layer, :opens, :closes
 
-    def initialize(guard)
-      @guard = guard
-      @closes = guard.respond_to?(:after) ? true : false
+    def initialize(layer)
+      @layer = layer
+      @opens = layer.respond_to?(:before) ? true : false
+      @closes = layer.respond_to?(:after) ? true : false
+      raise ArgumentError, "#{layer.class} has neither before nor after" unless @opens || @closes
     end
   end
 
-  # A path pattern split at boot: literal segments and {param} segments.
+  # A path pattern split at boot: literal segments and :param segments.
   class Pattern
     attr_reader :text
 
@@ -19,9 +21,10 @@ module HTTP
       @names = []
       text.split("/").each do |seg|
         next if seg.empty?
-        if seg.start_with?("{") && seg.end_with?("}")
+        if seg.start_with?(":")
+          raise ArgumentError, "param without a name in #{text.inspect}" if seg.size == 1
           @segs << ""
-          @names << seg[1, seg.size - 2]
+          @names << seg[1, seg.size - 1]
         else
           @segs << seg
           @names << ""
@@ -45,17 +48,25 @@ module HTTP
   end
 
   class Route
-    attr_reader :verb, :key, :handler, :steps
+    attr_reader :verb, :handler, :steps
 
-    def initialize(verb, key, handler)
+    def initialize(verb, handler, scope)
       @verb = verb
-      @key = key
       @handler = handler
+      @scope = scope
+      @own = []
       @steps = []
     end
 
     def attach(step)
-      @steps << step
+      @own << step
+      nil
+    end
+
+    # The layers of every enclosing scope, outermost first, then its own.
+    def seal
+      @scope.collect(@steps)
+      @own.each { |step| @steps << step }
       nil
     end
   end
@@ -71,6 +82,7 @@ module HTTP
     end
 
     def add(route)
+      raise ArgumentError, "#{route.verb} #{@pattern.text} is already routed" if @routes.any? { |r| r.verb == route.verb }
       @routes << route
       nil
     end
@@ -90,18 +102,62 @@ module HTTP
     end
   end
 
-  class Area
-    attr_reader :prefix, :step, :except, :covering
+  # A path prefix with its layers. The router is the scope of "/"; each
+  # #namespace opens one inside, whose routes run the layers of every
+  # enclosing scope first.
+  class Scope
+    attr_reader :prefix, :chain
 
-    def initialize(prefix, guard, except)
+    def initialize(router, prefix, parent)
+      @router = router
       @prefix = prefix
-      @step = Step.new(guard)
-      @except = except
-      @covering = []
+      @parent = parent
+      @steps = []
+      @chain = []
+    end
+
+    # A layer for every route in this scope, and for its 404 and 405.
+    def use(layer)
+      raise ArgumentError, "layers are fixed once the server starts" if @router.ready?
+      @steps << Step.new(layer)
+      nil
+    end
+
+    def get(path, handler, use: []) = @router.add_route("GET", self, path.to_s, handler, use)
+    def post(path, handler, use: []) = @router.add_route("POST", self, path.to_s, handler, use)
+    def put(path, handler, use: []) = @router.add_route("PUT", self, path.to_s, handler, use)
+    def patch(path, handler, use: []) = @router.add_route("PATCH", self, path.to_s, handler, use)
+    def delete(path, handler, use: []) = @router.add_route("DELETE", self, path.to_s, handler, use)
+
+    # Yields the scope of path inside this one ("/" in it is path itself).
+    # (Paths go through to_s: a verb the app never calls would otherwise
+    # leave them untyped and widen the String code of the request path.)
+    def namespace(path, use: [])
+      scope = @router.add_scope(self, path.to_s)
+      use.each { |layer| scope.use(layer) }
+      yield scope
+      nil
+    end
+
+    def join(path)
+      raise ArgumentError, "path must start with /: #{path.inspect}" unless path.start_with?("/")
+      return path if @prefix.empty?
+      path == "/" ? @prefix : @prefix + path
+    end
+
+    def collect(list)
+      @parent&.collect(list)
+      @steps.each { |step| list << step }
+      nil
+    end
+
+    def seal
+      collect(@chain)
+      nil
     end
   end
 
-  # The routes with {params}, as a radix tree: each node holds a run of
+  # The routes with :params, as a radix tree: each node holds a run of
   # literal bytes, children are picked by their first byte, and a param
   # child takes the bytes up to the next "/". A literal child is tried
   # before the param one. Looking a path up builds no String; the time
@@ -119,16 +175,17 @@ module HTTP
       @value = -1
     end
 
-    # Adds a pattern ("/posts/{id}/comments") ending in `value`.
+    # Adds a pattern ("/posts/:id/comments") ending in `value`.
     def add(text, value)
       node = self
       pos = 0
       while pos < text.bytesize
-        open = text.index("{", pos) || text.bytesize
+        open = text.index("/:", pos)
+        open = open.nil? ? text.bytesize : open + 1
         node = node.insert(text.byteslice(pos, open - pos)) if open > pos
         break if open == text.bytesize
         node = node.param_node
-        pos = text.index("}", open) + 1
+        pos = text.index("/", open) || text.bytesize
       end
       node.value = value
       nil
@@ -203,16 +260,26 @@ module HTTP
     end
   end
 
-  # routes.handle "GET /posts/{id}", Guard.new, ..., Handler.new
-  # routes.use "/admin", Guard.new, except: ["POST /admin/login"]
+  #   routes = HTTP::Router.new
+  #   routes.use AccessLog.new
+  #   routes.get "/posts/:id", ShowPost.new
+  #   routes.namespace "/admin", use: [RequireToken.new] do |admin|
+  #     admin.get "/", Dashboard.new
+  #   end
+  #
+  # A layer is any object with `before(req, res)`, `after(req, res)` or
+  # both. Befores run in order (outer scopes first, a route's own `use:`
+  # last). One stops the chain by raising HTTP::Error (its status becomes
+  # the response) or by answering with res.halt(status). Afters run in
+  # reverse, once the response is final, for every layer whose before ran
+  # (or that has none) up to where the chain stopped; res.error tells why
+  # it failed.
   class Router
-    VERBS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-
     def initialize
+      @root = Scope.new(self, "", nil)
+      @scopes = [@root]
       @groups = []
-      @inline = []
-      @areas = []
-      @no_steps = []
+      @routes = []
       @exact = { "" => PathGroup.new(Pattern.new("")) }
       @exact.clear
       @tree = Radix.new("")
@@ -220,55 +287,48 @@ module HTTP
       @ready = false
     end
 
-    def handle(spec, *objects)
-      raise ArgumentError, "route #{spec.inspect} needs a handler" if objects.empty?
-      space = spec.index(" ")
-      raise ArgumentError, "route needs a verb: #{spec.inspect}" if space.nil?
-      verb = spec[0, space]
-      raise ArgumentError, "unknown verb #{verb.inspect} in #{spec.inspect}" unless VERBS.include?(verb)
-      text = spec[space + 1, spec.size - space - 1]
+    def use(layer) = @root.use(layer)
+    def get(path, handler, use: []) = @root.get(path, handler, use: use)
+    def post(path, handler, use: []) = @root.post(path, handler, use: use)
+    def put(path, handler, use: []) = @root.put(path, handler, use: use)
+    def patch(path, handler, use: []) = @root.patch(path, handler, use: use)
+    def delete(path, handler, use: []) = @root.delete(path, handler, use: use)
+
+    def namespace(path, use: [])
+      @root.namespace(path, use: use) { |scope| yield scope }
+    end
+
+    def ready? = @ready
+
+    def add_route(verb, scope, path, handler, layers)
+      raise ArgumentError, "routes are fixed once the server starts" if @ready
+      text = scope.join(path)
       group = @groups.find { |g| g.pattern.text == text }
       if group.nil?
         group = PathGroup.new(Pattern.new(text))
         @groups << group
       end
-      route = Route.new(verb, spec, objects[objects.size - 1])
+      route = Route.new(verb, handler, scope)
+      layers.each { |layer| route.attach(Step.new(layer)) }
       group.add(route)
-      @inline << [route, objects[0, objects.size - 1]]
+      @routes << route
       nil
     end
 
-    def use(prefix, guard, except: [])
-      @areas << Area.new(prefix, guard, except)
-      nil
+    def add_scope(parent, path)
+      scope = Scope.new(self, parent.join(path), parent)
+      @scopes << scope
+      scope
     end
 
-    # Resolves guards, Allow and precedence once; the server calls it
-    # before the first request.
+    # Resolves layers, Allow and lookup once; the server calls it before
+    # the first request.
     def prepare
       return nil if @ready
-      keys = []
-      @groups.each { |g| g.routes.each { |r| keys << r.key } }
-      @areas.each do |area|
-        area.except.each do |key|
-          raise ArgumentError, "except: #{key.inspect} is not a registered route" unless keys.include?(key)
-        end
-      end
+      @scopes.each(&:seal)
+      @routes.each(&:seal)
       @groups.each do |group|
         group.seal
-        group.routes.each do |route|
-          @areas.each do |area|
-            next unless Router.covers?(area.prefix, group.pattern.text)
-            next if area.except.include?(route.key)
-            route.attach(area.step)
-          end
-        end
-      end
-      @inline.each { |pair| pair[1].each { |g| pair[0].attach(Step.new(g)) } }
-      @areas.each do |area|
-        @areas.each { |other| area.covering << other.step if Router.covers?(other.prefix, area.prefix) }
-      end
-      @groups.each do |group|
         if group.pattern.params?
           @tree.add(group.pattern.text, @param_groups.size)
           @param_groups << group
@@ -294,7 +354,7 @@ module HTTP
         run(route.steps, req, res) { route.handler.call(req, res) }
         return nil
       end
-      run(area_steps(path), req, res) do
+      run(scope_for(path).chain, req, res) do
         raise NotFound if group.nil?
         res.header("allow", group.allow)
         if req.method == "OPTIONS"
@@ -306,52 +366,49 @@ module HTTP
       nil
     end
 
-    # "/api" covers "/api" and "/api/...", not "/apix".
+    # "/api" covers "/api" and "/api/...", not "/apix"; "" covers all.
     def self.covers?(prefix, path)
-      return true if prefix == "/"
+      return true if prefix.empty?
       return false unless path.start_with?(prefix)
       path.size == prefix.size || path.getbyte(prefix.size) == 47
     end
 
     private
 
-    # The areas covering a path are those covering the deepest area that
-    # matches it, so a list per area answers without building one.
-    def area_steps(path)
-      steps = @no_steps
-      depth = -1
-      @areas.each do |area|
-        next unless Router.covers?(area.prefix, path) && area.prefix.size > depth
-        depth = area.prefix.size
-        steps = area.covering
+    # The deepest scope covering a path.
+    def scope_for(path)
+      found = @root
+      @scopes.each do |scope|
+        found = scope if scope.prefix.size > found.prefix.size && Router.covers?(scope.prefix, path)
       end
-      steps
+      found
     end
 
-    # Guards in order, then the block; an error becomes the response first,
-    # so `after` (of every guard whose `check` ran, in reverse, always) sees
-    # the final status and can still set headers.
+    # Befores in order until one halts, then the block; an error becomes
+    # the response first, so the afters (in reverse, of every layer whose
+    # before ran) see the final status and can still set headers.
     def run(steps, req, res)
       opened = 0
-      error = nil
       begin
-        steps.each do |step|
-          step.guard.check(req, res)
+        while opened < steps.size
+          step = steps[opened]
+          step.layer.before(req, res) if step.opens
           opened += 1
+          break if res.halted?
         end
-        yield
+        yield unless res.halted?
       rescue HTTP::Error => e
-        error = e
+        res.error = e
         res.fail(e.status, e.message)
       rescue StandardError => e
-        error = e
+        res.error = e
         warn "#{e.class}: #{e.message}"
         res.fail(500, "internal server error")
       ensure
         i = opened - 1
         while i >= 0
           step = steps[i]
-          step.guard.after(req, res, error) if step.closes
+          step.layer.after(req, res) if step.closes
           i -= 1
         end
       end
