@@ -1,0 +1,22 @@
+"q" => "two words"
+"tag" => "a"
+"tag" => "b"
+"empty" => ""
+"flag" => ""
+"x" => "çA"
+"nome" => "São Paulo"
+"raw" => "São"
+size=8 q=two words missing="" flag?=true nope?=false
+tags=["a", "b"] none=[]
+page=12 neg=-5 absent=7 blank=3 max=999999999999999999
+refused 400: word is not an integer
+refused 400: long is not an integer
+refused 400: dash is not an integer
+refused 400: bad %-escape
+refused 400: bad %-escape
+refused 400: bad %-escape
+refused 400: bad %-escape
+refused 400: more than 3 fields
+accepted
+true
+after parse: size=1 q="" b=2
