@@ -16,6 +16,9 @@ module HTTP
     # A body the app left unread is read and dropped up to this much so the
     # connection can be reused; past it the connection is closed instead.
     MAX_DRAIN = 262144
+    # Seconds a closing connection keeps reading (and dropping) what the
+    # peer still sends, after its answer, before it closes.
+    LINGER = 0.5
     # A body has header_timeout plus one second per MIN_RATE bytes received
     # to arrive: a slow upload goes on, a trickle is cut.
     MIN_RATE = 65536.0
@@ -153,6 +156,28 @@ module HTTP
       @continue = false
       @keep = false
       0
+    end
+
+    # Whether the peer may still have bytes on the way (a body or a
+    # request not read): closing then should go through #linger.
+    def unread? = @mode != 0 || @buf.bytesize > @start
+
+    # Before closing on a peer that may still be sending: stop writing,
+    # then read and drop what comes for up to LINGER seconds, so the close
+    # does not reset the connection under an answer the peer has not read.
+    # (shutdown, not close_write: in Spinel close_write raises on a
+    # socket, spinel-findings 193.)
+    def linger
+      @sock.shutdown(Socket::SHUT_WR)
+      deadline = now + LINGER
+      loop do
+        left = deadline - now
+        break if left <= 0 || @sock.wait_readable(left).nil?
+        @sock.readpartial(READ, @chunk)
+      end
+      nil
+    rescue IOError, SystemCallError
+      nil
     end
 
     # The head of a response. length -1 means chunked, -2 a head before the

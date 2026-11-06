@@ -92,6 +92,7 @@ module HTTP
           wire.no_reuse
           res.fail(status, HTTP.reason(status).downcase)
           res.finish
+          wire.linger unless status == 408
           break
         end
         req.reset
@@ -103,7 +104,9 @@ module HTTP
         res.finish
         @observer&.finished(req, res)
         req.done
-        break unless wire.keep_alive?
+        next if wire.keep_alive?
+        wire.linger if wire.unread? && res.status != 408 # (one too slow to send gets no grace)
+        break
       end
     rescue IOError, SystemCallError
       nil
