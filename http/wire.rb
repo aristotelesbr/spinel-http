@@ -241,7 +241,11 @@ module HTTP
       nil
     end
 
+    # (Compacts first once READ bytes are behind @start: a body read
+    # through @buf would otherwise grow it to the body's size, and the
+    # connection would keep that much for as long as it lives.)
     def fill_body
+      compact if @start >= READ
       left = @body_from + @limits.header_timeout + @received / MIN_RATE - now
       raise HTTP::Error.new(408, "body timeout") if left <= 0 || !fill(left)
       nil
@@ -351,28 +355,38 @@ module HTTP
 
     def read_length_chunk
       return 0 if @left <= 0
-      have = @buf.bytesize - @start
-      if have == 0
-        fill_to(1)
-        have = @buf.bytesize - @start
-      end
-      k = have < @left ? have : @left
-      k = CHUNK if k > CHUNK
-      take(k)
+      k = next_piece
       @left -= k
       @mode = 0 if @left == 0
       k
+    end
+
+    # Puts up to @left (at most CHUNK) body bytes in @chunk: what @buf
+    # holds, or, when it holds nothing, one read straight into @chunk, so
+    # a body does not pass through @buf (and does not grow it).
+    def next_piece
+      have = @buf.bytesize - @start
+      if have > 0
+        k = have < @left ? have : @left
+        k = CHUNK if k > CHUNK
+        take(k)
+        return k
+      end
+      compact
+      left = @body_from + @limits.header_timeout + @received / MIN_RATE - now
+      raise HTTP::Error.new(408, "body timeout") if left <= 0 || @sock.wait_readable(left).nil?
+      @sock.readpartial(@left < CHUNK ? @left : CHUNK, @chunk)
+      @received += @chunk.bytesize
+      @chunk.bytesize
+    rescue EOFError
+      raise HTTP::Error.new(408, "body timeout")
     end
 
     # States: 0 size line, 1 data, 2 CRLF after data, 3 trailers.
     def read_chunked_chunk
       loop do
         if @state == 1
-          fill_to(1) if @buf.bytesize == @start
-          have = @buf.bytesize - @start
-          k = have < @left ? have : @left
-          k = CHUNK if k > CHUNK
-          take(k)
+          k = next_piece
           @left -= k
           @state = 2 if @left == 0
           return k
