@@ -1,9 +1,17 @@
 module HTTP
+  # Seconds on the monotonic clock: the one req.started_at is read from,
+  # so HTTP.now - req.started_at is the time spent on the request so far.
+  def self.now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
   # The request being served: a view over the connection's buffer, reused
   # for every request the connection carries. Method and path are ready;
   # the rest becomes a String only when asked for.
   class Request
     attr_reader :method, :path
+
+    # HTTP.now when the head of this request had been read.
+    attr_reader :started_at
+
     attr_accessor :context
 
     def initialize(wire)
@@ -14,9 +22,11 @@ module HTTP
       @body = String.new(capacity: 1024)
       @body_read = false
       @context = nil
+      @started_at = 0.0
     end
 
     def reset
+      @started_at = HTTP.now
       @method = @wire.method
       from = @wire.target_from
       to = @wire.target_to
