@@ -15,6 +15,20 @@ module HTTP
     REASONS.fetch(status, "Unknown")
   end
 
+  # (Built from a literal seed: a Hash made by to_h is untyped in Spinel.)
+  def self.build_status_lines
+    lines = { 200 => "HTTP/1.1 200 OK\r\n" }
+    REASONS.each { |code, text| lines[code] = "HTTP/1.1 #{code} #{text}\r\n" }
+    lines
+  end
+
+  STATUS_LINES = build_status_lines
+
+  # "HTTP/1.1 200 OK\r\n", built once per known status.
+  def self.status_line(status)
+    STATUS_LINES[status] || "HTTP/1.1 " + status.to_s + " " + reason(status) + "\r\n"
+  end
+
   # Raised by handlers and guards; the server answers with its status.
   class Error < StandardError
     attr_reader :status

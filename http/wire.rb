@@ -194,9 +194,7 @@ module HTTP
         @continue = false
         @keep = false
       end
-      @out.replace("HTTP/1.1 ")
-      append_int(@out, status)
-      @out << " " << HTTP.reason(status) << "\r\n"
+      @out.replace(HTTP.status_line(status))
       i = 0
       while i < headers.size
         @out << headers[i] << ": " << headers[i + 1] << "\r\n"
@@ -223,8 +221,11 @@ module HTTP
         append_int(@out, length)
         @out << "\r\n"
       end
-      @out << (@keep ? "connection: keep-alive\r\n" : "connection: close\r\n") unless own_connection
-      @out << "\r\n"
+      if own_connection
+        @out << "\r\n"
+      else
+        @out << (@keep ? "connection: keep-alive\r\n\r\n" : "connection: close\r\n\r\n")
+      end
       if !with_body || body.empty?
         send_all(@out)
       elsif body.bytesize <= OUT_INLINE
