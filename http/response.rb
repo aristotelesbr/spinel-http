@@ -8,6 +8,9 @@ module HTTP
 
     attr_reader :status, :body, :bytes_written
 
+    # The exception that became this response, nil when none did.
+    attr_accessor :error
+
     def initialize(wire, server, errors)
       @wire = wire
       @server = server
@@ -20,6 +23,8 @@ module HTTP
       @sent = false
       @streaming = false
       @taken = false
+      @halted = false
+      @error = nil
     end
 
     def reset
@@ -30,6 +35,8 @@ module HTTP
       @sent = false
       @streaming = false
       @taken = false
+      @halted = false
+      @error = nil
       nil
     end
 
@@ -120,6 +127,17 @@ module HTTP
 
     def sent? = @sent
     def taken? = @taken
+
+    # Answers now with what was written so far, under status (by default
+    # the one already set): the befores after this one and the handler are
+    # skipped (the afters still run).
+    def halt(status = @status)
+      self.status = status.to_i # (to_i: typed even when no app calls halt)
+      @halted = true
+      nil
+    end
+
+    def halted? = @halted
 
     # Sends the head as it stands (status 101, say) and hands over the
     # socket: the server no longer reads or writes this connection.

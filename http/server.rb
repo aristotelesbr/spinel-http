@@ -154,8 +154,10 @@ module HTTP
       @app.call(req, res)
       nil
     rescue HTTP::Error => e
+      res.error = e
       res.fail(e.status, e.message)
     rescue StandardError => e
+      res.error = e
       warn "#{e.class}: #{e.message}"
       res.fail(500, "internal server error")
     end
