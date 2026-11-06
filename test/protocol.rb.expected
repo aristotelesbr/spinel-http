@@ -24,3 +24,12 @@ no body
 304, then a second request on the connection:
   HTTP/1.1 304 Not Modified | connection: keep-alive | dates=1 | ""
   HTTP/1.1 304 Not Modified | connection: close | dates=1 | ""
+expect
+100-continue, body read:
+  HTTP/1.1 100 Continue | dates=0 | ""
+  HTTP/1.1 200 OK | content-length: 7 | connection: keep-alive | dates=1 | "read 5\n"
+  HTTP/1.1 200 OK | content-length: 7 | connection: close | dates=1 | "read 0\n"
+100-continue, body not read:
+  HTTP/1.1 200 OK | content-length: 8 | connection: close | dates=1 | "ignored\n"
+other expectation:
+  HTTP/1.1 417 Expectation Failed | content-length: 19 | connection: close | dates=1 | "expectation failed\n"

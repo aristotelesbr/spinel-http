@@ -41,6 +41,7 @@ module HTTP
       @body_from = 0.0
       @state = 0
       @raw = false
+      @continue = false
       @writing_since = 0
     end
 
@@ -113,6 +114,10 @@ module HTTP
     # limits or the grammar, or that stops coming.
     def read_body_chunk
       return 0 if @mode == 0
+      if @continue
+        @continue = false
+        send_all("HTTP/1.1 100 Continue\r\n\r\n")
+      end
       return read_length_chunk if @mode == 1
       read_chunked_chunk
     end
@@ -122,7 +127,11 @@ module HTTP
     # Reads what is left of the body so the next request starts clean. 0
     # when it did; otherwise the status the body deserves (400, 408, 413),
     # and the connection is not reused.
+    # A client still waiting for "100 Continue" never sent its body: the
+    # connection is closed instead.
     def drain_body
+      return 0 if @mode == 0
+      return give_up if @continue
       while read_body_chunk > 0
       end
       0
@@ -131,12 +140,24 @@ module HTTP
       e.status
     end
 
+    def give_up
+      @continue = false
+      @keep = false
+      0
+    end
+
     # The head of a response. length -1 means chunked, -2 a head before the
     # socket is handed over (no length, no connection header), -3 a body
     # sent until the connection closes (HTTP/1.0 streaming), -4 no body at
     # all (1xx, 204, 304). date "" leaves out the server's (the app set its
-    # own), and so does own_connection with the connection header.
+    # own), and so does own_connection with the connection header. Once a
+    # final answer is out, a pending "100 Continue" is not sent any more
+    # and the body it held back will not come: the connection closes.
     def write_head(status, headers, length, date, own_connection)
+      if @continue
+        @continue = false
+        @keep = false
+      end
       @out.replace("HTTP/1.1 ")
       append_int(@out, status)
       @out << " " << HTTP.reason(status) << "\r\n"
@@ -307,7 +328,21 @@ module HTTP
         pos = nl + 2
       end
       @start = stop + 4
-      check_framing
+      status = check_framing
+      return status if status > 0
+      check_expect
+    end
+
+    # "Expect: 100-continue" is answered on the first read of the body (the
+    # client holds the body back until then); any other expectation is a
+    # 417.
+    def check_expect
+      @continue = false
+      k = find("expect", 0)
+      return 0 if k < 0
+      return 417 unless same?(@offs[k + 2], @offs[k + 3], "100-continue", true)
+      @continue = @version == 1 && @mode != 0
+      0
     end
 
     def parse_version(from, to)

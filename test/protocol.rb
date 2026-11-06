@@ -2,7 +2,8 @@
 # values are checked (no CR/LF from the app), content-length and
 # transfer-encoding are the server's, "connection: close" closes once, an
 # app date replaces the server's; 204 and 304 go out with no length and no
-# body.
+# body; "Expect: 100-continue" is answered when the body is first read (and
+# not at all when it is not, which closes), any other expectation is a 417.
 require "http/testing"
 
 class SetHeader
@@ -72,3 +73,12 @@ puts "no body"
   puts "#{status}, then a second request on the connection:"
   show(Empty.new(status), GET + "GET / HTTP/1.1\r\nhost: t\r\nconnection: close\r\n\r\n")
 end
+
+puts "expect"
+body = "POST / HTTP/1.1\r\nhost: t\r\ncontent-length: 5\r\nexpect: 100-continue\r\n\r\nhello"
+puts "100-continue, body read:"
+show(ReadBody.new, body + LAST)
+puts "100-continue, body not read:"
+show(Ignore.new, body + LAST)
+puts "other expectation:"
+show(Ignore.new, "POST / HTTP/1.1\r\nhost: t\r\ncontent-length: 5\r\nexpect: magic\r\n\r\nhello")
