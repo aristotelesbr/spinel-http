@@ -65,7 +65,7 @@ module HTTP
         return -1 unless fill(0.0)
         skip_empty_lines
       end
-      deadline = now + @limits.header_timeout
+      deadline = 0.0 # (set on the first wait: most heads come whole in one read)
       scanned = 0
       loop do
         stop = @buf.byteindex("\r\n\r\n")
@@ -77,6 +77,7 @@ module HTTP
           return parse_head(stop)
         end
         return 431 if @buf.bytesize > @limits.max_header_bytes
+        deadline = now + @limits.header_timeout if deadline == 0.0
         left = deadline - now
         return -1 if left <= 0
         return -1 unless fill(left)
@@ -183,12 +184,12 @@ module HTTP
     # The head of a response. length -1 means chunked, -2 a head before the
     # socket is handed over (no length, no connection header), -3 a body
     # sent until the connection closes (HTTP/1.0 streaming), -4 no body at
-    # all (1xx, 204, 304). date "" leaves out the server's (the app set its
-    # own), and so does own_connection with the connection header. With
-    # with_body, body goes out with the head, in the same write when it
-    # fits in OUT_INLINE. Once a final answer is out, a pending "100
-    # Continue" is not sent any more and the body it held back will not
-    # come: the connection closes.
+    # all (1xx, 204, 304). date is the whole "date: ...\r\n" line, "" when
+    # the app set its own; own_connection leaves out the connection header
+    # the same way. With with_body, body goes out with the head, in the
+    # same write when it fits in OUT_INLINE. Once a final answer is out, a
+    # pending "100 Continue" is not sent any more and the body it held back
+    # will not come: the connection closes.
     def write_head(status, headers, length, date, own_connection, body, with_body)
       if @continue
         @continue = false
@@ -200,7 +201,7 @@ module HTTP
         @out << headers[i] << ": " << headers[i + 1] << "\r\n"
         i += 2
       end
-      @out << "date: " << date << "\r\n" unless date.empty?
+      @out << date
       if length == -2
         @out << "\r\n"
         send_all(@out)
@@ -411,10 +412,10 @@ module HTTP
       @keep = @version == 1 ? !value_is?("connection", "close") : value_is?("connection", "keep-alive")
       @total = 0
       @received = 0
-      @body_from = now
       @left_declared = 0
       if te >= 0
         return 501 unless same?(@offs[te + 2], @offs[te + 3], "chunked", true)
+        @body_from = now
         @mode = 2
         @state = 0
         @left = 0
@@ -437,6 +438,7 @@ module HTTP
         from += 1
       end
       return 413 if n > @limits.max_body_bytes
+      @body_from = now if n > 0
       @left_declared = n
       @left = n
       @mode = n > 0 ? 1 : 0

@@ -36,7 +36,9 @@ module HTTP
       @lock = Mutex.new
       @date = ""
       @date_at = -1
+      @clock = false
       @tick = 1
+      @date_line = ""
       @wires = []
     end
 
@@ -52,6 +54,9 @@ module HTTP
       Signal.trap("TERM") { @stopping = true }
       Signal.trap("INT") { @stopping = true }
       yield @port if block_given?
+      date
+      @clock = true
+      clock = Thread.new { keep_date }
       watchdog = Thread.new { watch }
       until @stopping
         next if listener.wait_readable(0.2).nil?
@@ -59,6 +64,7 @@ module HTTP
       end
       listener.close
       watchdog.join
+      clock.join
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @shutdown_timeout
       while @lock.synchronize { @active } > 0 && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
         sleep 0.05
@@ -122,17 +128,39 @@ module HTTP
 
     def stopping? = @stopping
 
-    # The Date header, formatted once a second.
+    # The Date header, formatted once a second: by a thread while listening
+    # (no clock read per request), here otherwise.
     def date
+      return @date if @clock
       s = Process.clock_gettime(Process::CLOCK_REALTIME).to_i
       if s != @date_at
         @date = Time.at(s).httpdate
+        @date_line = "date: " + @date + "\r\n"
         @date_at = s
       end
       @date
     end
 
+    # The whole "date: ...\r\n" line, as a response head takes it.
+    def date_line
+      date unless @clock
+      @date_line
+    end
+
     private
+
+    def keep_date
+      until @stopping
+        sleep 0.1
+        s = Process.clock_gettime(Process::CLOCK_REALTIME).to_i
+        next if s == @date_at
+        d = Time.at(s).httpdate
+        @date_line = "date: " + d + "\r\n"
+        @date = d
+        @date_at = s
+      end
+      nil
+    end
 
     # Every header_timeout / 2: closes the connections whose write started
     # two ticks ago or more, so a peer that does not read cannot hold one

@@ -259,8 +259,8 @@ module HTTP
     # Nothing of the body goes out: a HEAD request, or a status without one.
     def silent? = @wire.head_only? || no_body?
 
-    # The server's Date, or "" when the app set its own.
-    def date = @own_date ? "" : @server.date
+    # The server's "date: ...\r\n" line, or "" when the app set its own.
+    def date = @own_date ? "" : @server.date_line
   end
 
   # The default errors object: the message as plain text.
