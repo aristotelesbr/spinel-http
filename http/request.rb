@@ -9,6 +9,10 @@ module HTTP
   # for every request the connection carries. Method and path are ready;
   # the rest becomes a String only when asked for.
   class Request
+    # A body read whole up to this size keeps its buffer for the next
+    # request of the connection; a bigger one is let go.
+    KEEP_BODY = 65536
+
     attr_reader :method, :path
 
     # HTTP.now when the head of this request had been read.
@@ -45,6 +49,16 @@ module HTTP
       @context = nil
       @query_parsed = false
       @form_parsed = false
+      nil
+    end
+
+    # Called by the server once the answer is out: a body bigger than
+    # KEEP_BODY is let go (with the form fields that point into it) rather
+    # than kept while the connection waits for its next request.
+    def done
+      return nil if @body.bytesize <= KEEP_BODY
+      @body = String.new(capacity: 1024)
+      @form_params.parse("")
       nil
     end
 

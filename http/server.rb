@@ -102,6 +102,7 @@ module HTTP
         res.fail(bad, HTTP.reason(bad).downcase) if bad > 0 && !res.sent?
         res.finish
         @observer&.finished(req, res)
+        req.done
         break unless wire.keep_alive?
       end
     rescue IOError, SystemCallError
