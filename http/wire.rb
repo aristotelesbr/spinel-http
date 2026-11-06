@@ -133,9 +133,9 @@ module HTTP
 
     # The head of a response. length -1 means chunked, -2 a head before the
     # socket is handed over (no length, no connection header), -3 a body
-    # sent until the connection closes (HTTP/1.0 streaming). date "" leaves
-    # out the server's (the app set its own), and so does own_connection
-    # with the connection header.
+    # sent until the connection closes (HTTP/1.0 streaming), -4 no body at
+    # all (1xx, 204, 304). date "" leaves out the server's (the app set its
+    # own), and so does own_connection with the connection header.
     def write_head(status, headers, length, date, own_connection)
       @out.replace("HTTP/1.1 ")
       append_int(@out, status)
@@ -156,6 +156,8 @@ module HTTP
       end
       if length == -1
         @out << "transfer-encoding: chunked\r\n"
+      elsif length == -4
+        nil
       elsif length == -3
         @raw = true
         @keep = false

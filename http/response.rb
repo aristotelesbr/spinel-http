@@ -46,7 +46,8 @@ module HTTP
   #
   # The server owns how the body is framed and the connection: the app
   # cannot set content-length or transfer-encoding, "connection: close"
-  # asks the server to close after this answer.
+  # asks the server to close after this answer, and 1xx, 204 and 304
+  # answers go out with no body and no length.
   class Response
     LIMIT = 65536
 
@@ -136,6 +137,7 @@ module HTTP
     end
 
     def write(data)
+      return nil if no_body?
       @bytes_written += data.bytesize
       if @streaming
         @wire.write_chunk(data) unless @wire.head_only?
@@ -151,6 +153,7 @@ module HTTP
 
     # Writes the digits of an Integer, without building a String for it.
     def write_int(n)
+      return nil if no_body?
       if n < 0
         write("-")
         n = -n
@@ -185,12 +188,15 @@ module HTTP
       unless @sent
         @sent = true
         @streaming = true
-        @wire.write_head(@status, @headers, -1, date, @own_connection)
+        @wire.write_head(@status, @headers, no_body? ? -4 : -1, date, @own_connection)
       end
-      @wire.write_chunk(@body) unless @wire.head_only?
+      @wire.write_chunk(@body) unless silent?
       @body.replace("")
       nil
     end
+
+    # 1xx, 204 and 304 carry no body: writes are dropped.
+    def no_body? = @status == 204 || @status == 304 || (@status >= 100 && @status < 200)
 
     def sent? = @sent
     def taken? = @taken
@@ -236,8 +242,12 @@ module HTTP
     # Called by the server after the app returns.
     def finish
       if @streaming
-        @wire.write_chunk(@body) unless @wire.head_only?
-        @wire.end_chunks unless @wire.head_only?
+        unless silent?
+          @wire.write_chunk(@body)
+          @wire.end_chunks
+        end
+      elsif no_body?
+        @wire.write_head(@status, @headers, -4, date, @own_connection)
       else
         @wire.write_head(@status, @headers, @body.bytesize, date, @own_connection)
         @wire.write(@body) unless @wire.head_only?
@@ -246,6 +256,9 @@ module HTTP
     end
 
     private
+
+    # Nothing of the body goes out: a HEAD request, or a status without one.
+    def silent? = @wire.head_only? || no_body?
 
     # The server's Date, or "" when the app set its own.
     def date = @own_date ? "" : @server.date

@@ -1,7 +1,8 @@
 # What the server owns and what the app may not override: header names and
 # values are checked (no CR/LF from the app), content-length and
 # transfer-encoding are the server's, "connection: close" closes once, an
-# app date replaces the server's.
+# app date replaces the server's; 204 and 304 go out with no length and no
+# body.
 require "http/testing"
 
 class SetHeader
@@ -64,4 +65,10 @@ puts "app headers"
  ["Transfer-Encoding", "chunked"], ["Connection", "close"], ["date", "Sat, 01 Jan 2000 00:00:00 GMT"]].each do |name, value|
   puts "#{name.inspect}:"
   show(SetHeader.new(name, value), name == "Connection" ? GET + LAST : LAST)
+end
+
+puts "no body"
+[204, 304].each do |status|
+  puts "#{status}, then a second request on the connection:"
+  show(Empty.new(status), GET + "GET / HTTP/1.1\r\nhost: t\r\nconnection: close\r\n\r\n")
 end
