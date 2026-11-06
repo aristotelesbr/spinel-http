@@ -10,6 +10,9 @@ module HTTP
     METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "CONNECT", "TRACE"]
     READ = 16384
     CHUNK = 65536
+    # A chunk bigger than this goes out in its own write rather than
+    # through @out, which would grow to it and keep that size.
+    OUT_INLINE = 4096
     # A body has header_timeout plus one second per MIN_RATE bytes received
     # to arrive: a slow upload goes on, a trickle is cut.
     MIN_RATE = 65536.0
@@ -177,8 +180,15 @@ module HTTP
       end
       @out.replace("")
       append_hex(@out, data.bytesize)
-      @out << "\r\n" << data << "\r\n"
-      send_all(@out)
+      @out << "\r\n"
+      if data.bytesize > OUT_INLINE
+        send_all(@out)
+        send_all(data)
+        send_all("\r\n")
+      else
+        @out << data << "\r\n"
+        send_all(@out)
+      end
       nil
     end
 

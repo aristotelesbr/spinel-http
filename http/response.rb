@@ -75,6 +75,9 @@ module HTTP
       @bytes_written += data.bytesize
       if @streaming
         @wire.write_chunk(data) unless @wire.head_only?
+      elsif @body.bytesize + data.bytesize > LIMIT
+        flush # (data goes straight out: the buffer never grows past LIMIT and stays that size)
+        @wire.write_chunk(data) unless @wire.head_only?
       else
         @body << data
         flush if @body.bytesize >= LIMIT

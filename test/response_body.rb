@@ -30,3 +30,18 @@ r = HTTP::Testing.request(Streamed.new, "GET /")
 puts r.header("transfer-encoding"), r.header("content-type"), r.body.inspect
 r = HTTP::Testing.request(Whole.new, "HEAD /")
 puts r.status, r.header("content-length"), r.body.inspect
+
+# A write that would take the buffer past 64 KB goes straight out, after
+# what was buffered, as chunks.
+class Large
+  def call(req, res)
+    res.text("head ")
+    res.write("x" * 30_000)
+    res.write("y" * 100_000)
+    res.write(" tail")
+  end
+end
+
+r = HTTP::Testing.request(Large.new, "GET /")
+b = r.body
+puts r.header("transfer-encoding"), b.bytesize, b.start_with?("head x"), b.count("x"), b.count("y"), b.end_with?("y tail")
