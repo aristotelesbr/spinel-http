@@ -3,7 +3,9 @@
 # transfer-encoding are the server's, "connection: close" closes once, an
 # app date replaces the server's; 204 and 304 go out with no length and no
 # body; "Expect: 100-continue" is answered when the body is first read (and
-# not at all when it is not, which closes), any other expectation is a 417.
+# not at all when it is not, which closes), any other expectation is a 417;
+# a body left unread is drained up to 256 KB, past that the connection
+# closes.
 require "http/testing"
 
 class SetHeader
@@ -82,3 +84,9 @@ puts "100-continue, body not read:"
 show(Ignore.new, body + LAST)
 puts "other expectation:"
 show(Ignore.new, "POST / HTTP/1.1\r\nhost: t\r\ncontent-length: 5\r\nexpect: magic\r\n\r\nhello")
+
+puts "unread body"
+[100_000, 300_000].each do |n|
+  puts "#{n} bytes unread, then a second request:"
+  show(Ignore.new, "POST / HTTP/1.1\r\nhost: t\r\ncontent-length: #{n}\r\n\r\n" + ("x" * n) + LAST)
+end

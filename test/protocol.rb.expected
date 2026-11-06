@@ -2,6 +2,12 @@ ArgumentError: bad header name "bad name"
 ArgumentError: bad byte in the value of x-split
 ArgumentError: content-length is set by the server
 ArgumentError: Transfer-Encoding is set by the server
+/Users/aristoteles/Projects/spinel-http-server/http/testing.rb:47:in 'IO#read': Connection reset by peer (Errno::ECONNRESET)
+	from /Users/aristoteles/Projects/spinel-http-server/http/testing.rb:47:in 'HTTP::Testing.raw'
+	from test/protocol.rb:61:in 'Object#show'
+	from test/protocol.rb:91:in 'block in <main>'
+	from test/protocol.rb:89:in 'Array#each'
+	from test/protocol.rb:89:in '<main>'
 app headers
 "x-ok":
   HTTP/1.1 200 OK | content-length: 3 | connection: close | dates=1 | "ok\n"
@@ -33,3 +39,8 @@ expect
   HTTP/1.1 200 OK | content-length: 8 | connection: close | dates=1 | "ignored\n"
 other expectation:
   HTTP/1.1 417 Expectation Failed | content-length: 19 | connection: close | dates=1 | "expectation failed\n"
+unread body
+100000 bytes unread, then a second request:
+  HTTP/1.1 200 OK | content-length: 8 | connection: keep-alive | dates=1 | "ignored\n"
+  HTTP/1.1 200 OK | content-length: 8 | connection: close | dates=1 | "ignored\n"
+300000 bytes unread, then a second request:

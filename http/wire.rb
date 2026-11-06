@@ -13,6 +13,9 @@ module HTTP
     # A chunk bigger than this goes out in its own write rather than
     # through @out, which would grow to it and keep that size.
     OUT_INLINE = 4096
+    # A body the app left unread is read and dropped up to this much so the
+    # connection can be reused; past it the connection is closed instead.
+    MAX_DRAIN = 262144
     # A body has header_timeout plus one second per MIN_RATE bytes received
     # to arrive: a slow upload goes on, a trickle is cut.
     MIN_RATE = 65536.0
@@ -127,12 +130,18 @@ module HTTP
     # Reads what is left of the body so the next request starts clean. 0
     # when it did; otherwise the status the body deserves (400, 408, 413),
     # and the connection is not reused.
-    # A client still waiting for "100 Continue" never sent its body: the
+    # A client still waiting for "100 Continue" never sent its body, and a
+    # body over MAX_DRAIN is not worth reading: in both cases the
     # connection is closed instead.
     def drain_body
       return 0 if @mode == 0
-      return give_up if @continue
-      while read_body_chunk > 0
+      return give_up if @continue || (@mode == 1 && @left > MAX_DRAIN)
+      drained = 0
+      loop do
+        k = read_body_chunk
+        break if k == 0
+        drained += k
+        return give_up if drained > MAX_DRAIN
       end
       0
     rescue HTTP::Error => e
