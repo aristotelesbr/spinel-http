@@ -24,13 +24,13 @@ class Login
 end
 
 class Admin
-  def call(req, res) = res.text("admin #{req.state}\n")
+  def call(req, res) = res.text("admin #{req.context}\n")
 end
 
 class Token
   def check(req, res)
     raise HTTP::Unauthorized unless req.header("authorization") == "Bearer t"
-    req.state = "ana"
+    req.context = "ana"
     nil
   end
 end

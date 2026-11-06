@@ -4,7 +4,7 @@ module HTTP
   # the rest becomes a String only when asked for.
   class Request
     attr_reader :method, :path
-    attr_accessor :state
+    attr_accessor :context
 
     def initialize(wire)
       @wire = wire
@@ -13,7 +13,7 @@ module HTTP
       @params = { "" => "" }
       @body = String.new(capacity: 1024)
       @body_read = false
-      @state = nil
+      @context = nil
     end
 
     def reset
@@ -26,7 +26,7 @@ module HTTP
       @params.clear
       @body.replace("")
       @body_read = false
-      @state = nil
+      @context = nil
       nil
     end
 
@@ -75,7 +75,7 @@ module HTTP
       nil
     end
 
-    # A {name} segment of the route that matched; "" when absent.
+    # A :name segment of the route that matched; "" when absent.
     def param(name) = @params.fetch(name, "")
   end
 end

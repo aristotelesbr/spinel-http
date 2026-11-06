@@ -69,13 +69,13 @@ class Login
 end
 
 class Dashboard
-  def call(req, res) = res.text("hello #{req.state.user}\n")
+  def call(req, res) = res.text("hello #{req.context.user}\n")
 end
 
 class RequireToken
   def check(req, res)
     raise HTTP::Unauthorized unless req.header("authorization") == "Bearer secret"
-    req.state = Session.new("admin")
+    req.context = Session.new("admin")
     nil
   end
 end
