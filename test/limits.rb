@@ -33,6 +33,6 @@ cases = {
   "plus length" => "POST / HTTP/1.1\r\n#{H}content-length: +5\r\n\r\n",
   "13-digit length" => "POST / HTTP/1.1\r\n#{H}content-length: 1234567890123\r\n\r\n",
   "huge chunk size" => "POST / HTTP/1.1\r\n#{H}transfer-encoding: chunked\r\nconnection: close\r\n\r\nfffffffffffffffff\r\n",
-  "head too large" => "GET / HTTP/1.1\r\n#{H}x-big: #{"a" * 9000}\r\n\r\n",
+  "head too large" => "GET / HTTP/1.1\r\n#{H}x-big: #{"a" * 17000}\r\n\r\n",
 }
 cases.each { |name, data| puts "#{name}: #{status_of(data)}" }

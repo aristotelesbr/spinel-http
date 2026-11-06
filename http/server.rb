@@ -20,7 +20,7 @@ module HTTP
 
     def initialize(app, host: "127.0.0.1", port: 8080, observer: nil, errors: PlainErrors.new,
                    idle_timeout: 5.0, header_timeout: 10.0, shutdown_timeout: 10.0,
-                   max_header_bytes: 8192, max_body_bytes: 1_048_576)
+                   max_header_bytes: 16384, max_body_bytes: 1_048_576)
       @app = app
       @host = host
       @port = port
