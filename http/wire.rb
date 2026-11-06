@@ -49,10 +49,15 @@ module HTTP
       @raw = false
       @continue = false
       @writing_since = 0
+      @idle_since = 0
     end
 
     # The server's tick a write in progress started in; 0 when none is.
     def writing_since = @writing_since
+
+    # The server's tick the wait for the next request started in; 0 when
+    # the connection is not idle.
+    def idle_since = @idle_since
 
     # Reads the next head. 0 when it is in, -1 when the peer closed or went
     # quiet (close without answering), or the status to answer before
@@ -61,7 +66,15 @@ module HTTP
       compact
       skip_empty_lines
       if @buf.empty?
-        return -1 if @sock.wait_readable(@limits.idle_timeout).nil?
+        if @limits.watching?
+          # (no timer per request: the watchdog closes it past idle_timeout)
+          @idle_since = @limits.tick
+          ready = @sock.wait_readable
+          @idle_since = 0
+          return -1 if ready.nil?
+        else
+          return -1 if @sock.wait_readable(@limits.idle_timeout).nil?
+        end
         return -1 unless fill(0.0)
         skip_empty_lines
       end

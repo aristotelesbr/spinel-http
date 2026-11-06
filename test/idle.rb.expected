@@ -1,0 +1,4 @@
+answered: true
+idle connection closed between 1 and 2.5 s: true
+waiting connection closed by the shutdown within 1 s: true
+listen returned within 2 s: true

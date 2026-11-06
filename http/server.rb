@@ -38,12 +38,20 @@ module HTTP
       @date_at = -1
       @clock = false
       @tick = 1
+      @watching = false
       @date_line = ""
       @wires = []
     end
 
-    # Advanced by the watchdog every header_timeout / 2 seconds.
+    # Seconds between two runs of the watchdog.
+    TICK = 0.5
+
+    # Advanced by the watchdog every TICK seconds.
     def tick = @tick
+
+    # Whether the watchdog runs (it cuts idle connections, so a connection
+    # can wait for its next request with no timer of its own).
+    def watching? = @watching
 
     # Serves until #shutdown, SIGTERM or SIGINT; then waits for the requests
     # in progress. Yields the bound port once listening.
@@ -56,6 +64,7 @@ module HTTP
       yield @port if block_given?
       date
       @clock = true
+      @watching = true
       clock = Thread.new { keep_date }
       watchdog = Thread.new { watch }
       until @stopping
@@ -162,21 +171,29 @@ module HTTP
       nil
     end
 
-    # Every header_timeout / 2: closes the connections whose write started
-    # two ticks ago or more, so a peer that does not read cannot hold one
-    # (the write raises IOError and the connection ends).
+    # Every TICK: closes the connections whose write has lasted
+    # header_timeout (a peer that does not read cannot hold one: the write
+    # raises IOError and the connection ends) and those that have waited
+    # idle_timeout for their next request. Once stopping, it closes at once
+    # every connection waiting for a next request.
     def watch
-      step = @header_timeout / 2
       until @stopping
-        sleep step
+        sleep TICK
         @tick += 1
         @lock.synchronize do
           @wires.each do |w|
+            next if w.sock.closed?
             since = w.writing_since
-            w.sock.close if since > 0 && @tick - since >= 2 && !w.sock.closed?
+            idle = w.idle_since
+            if (since > 0 && (@tick - since) * TICK >= @header_timeout) ||
+               (idle > 0 && (@tick - idle) * TICK >= @idle_timeout)
+              w.sock.close
+            end
           end
         end
       end
+      # stopping: the connections waiting for a next request go now
+      @lock.synchronize { @wires.each { |w| w.sock.close if w.idle_since > 0 && !w.sock.closed? } }
       nil
     end
 
