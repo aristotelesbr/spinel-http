@@ -48,6 +48,13 @@ module HTTP
       @state = 0
       @raw = false
       @continue = false
+      @n_host = 0
+      @n_cl = 0
+      @n_te = 0
+      @k_cl = -1
+      @k_te = -1
+      @k_conn = -1
+      @k_expect = -1
       @writing_since = 0
       @idle_since = 0
     end
@@ -365,6 +372,13 @@ module HTTP
       @method = known_method
       return 501 if @method.empty?
       @offs.clear
+      @n_host = 0
+      @n_cl = 0
+      @n_te = 0
+      @k_cl = -1
+      @k_te = -1
+      @k_conn = -1
+      @k_expect = -1
       pos = @line_end + 2
       while pos < stop + 2
         nl = @buf.byteindex("\r\n", pos)
@@ -378,6 +392,7 @@ module HTTP
         ve = nl
         ve -= 1 while ve > vs && (@buf.getbyte(ve - 1) == 32 || @buf.getbyte(ve - 1) == 9)
         return 400 unless field_value?(vs, ve)
+        note_framing(pos, colon, @offs.size)
         @offs << pos << colon << vs << ve
         pos = nl + 2
       end
@@ -392,11 +407,35 @@ module HTTP
     # 417.
     def check_expect
       @continue = false
-      k = find("expect", 0)
+      k = @k_expect
       return 0 if k < 0
       return 417 unless same?(@offs[k + 2], @offs[k + 3], "100-continue", true)
       @continue = @version == 1 && @mode != 0
       0
+    end
+
+    # Notes, as the head is parsed, the headers that decide framing, so
+    # check_framing and check_expect need no search of their own.
+    def note_framing(from, to, k)
+      len = to - from
+      if len == 4
+        @n_host += 1 if same?(from, to, "host", true)
+      elsif len == 14
+        if same?(from, to, "content-length", true)
+          @n_cl += 1
+          @k_cl = k if @k_cl < 0
+        end
+      elsif len == 17
+        if same?(from, to, "transfer-encoding", true)
+          @n_te += 1
+          @k_te = k if @k_te < 0
+        end
+      elsif len == 10
+        @k_conn = k if @k_conn < 0 && same?(from, to, "connection", true)
+      elsif len == 6
+        @k_expect = k if @k_expect < 0 && same?(from, to, "expect", true)
+      end
+      nil
     end
 
     def parse_version(from, to)
@@ -416,13 +455,18 @@ module HTTP
     # Host, Content-Length and Transfer-Encoding decide where the body ends;
     # any doubt about it is a 400.
     def check_framing
-      hosts = count("host")
+      hosts = @n_host
       return 400 if hosts > 1 || (@version == 1 && hosts == 0)
-      lengths = count("content-length")
-      te = find("transfer-encoding", 0)
+      lengths = @n_cl
+      te = @k_te
       return 400 if lengths > 1 || (lengths == 1 && te >= 0)
-      return 400 if te >= 0 && find("transfer-encoding", te + 4) >= 0
-      @keep = @version == 1 ? !value_is?("connection", "close") : value_is?("connection", "keep-alive")
+      return 400 if @n_te > 1
+      conn = @k_conn
+      @keep = if @version == 1
+                conn < 0 || !same?(@offs[conn + 2], @offs[conn + 3], "close", true)
+              else
+                conn >= 0 && same?(@offs[conn + 2], @offs[conn + 3], "keep-alive", true)
+              end
       @total = 0
       @received = 0
       @left_declared = 0
@@ -438,7 +482,7 @@ module HTTP
         @mode = 0
         return 0
       end
-      k = find("content-length", 0)
+      k = @k_cl
       from = @offs[k + 2]
       to = @offs[k + 3]
       return 400 if from == to
