@@ -1,7 +1,8 @@
 # What the server owns and what the app may not override: header names and
 # values are checked (no CR/LF from the app), content-length and
-# transfer-encoding are the server's, "connection: close" closes once, an
-# app date replaces the server's; 204 and 304 go out with no length and no
+# transfer-encoding are the server's, "connection: close" closes once, a
+# "connection: keep-alive" is the server's to say, a content type set as
+# "Content-Type" is not doubled by text, an app date replaces the server's; 204 and 304 go out with no length and no
 # body; "Expect: 100-continue" is answered when the body is first read (and
 # not at all when it is not, which closes), any other expectation is a 417;
 # a body left unread is drained up to 256 KB, past that the connection
@@ -69,6 +70,11 @@ puts "app headers"
   puts "#{name.inspect}:"
   show(SetHeader.new(name, value), name == "Connection" ? GET + LAST : LAST)
 end
+
+puts "app content type and keep-alive"
+typed = SpinelHTTP::Testing.raw(SetHeader.new("Content-Type", "text/html"), LAST)
+puts "  content types: #{typed.split("\r\n").count { |l| l.downcase.start_with?("content-type:") }}"
+show(SetHeader.new("connection", "keep-alive"), "GET / HTTP/1.0\r\nhost: t\r\n\r\n")
 
 puts "no body"
 [204, 304].each do |status|

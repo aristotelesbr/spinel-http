@@ -110,6 +110,7 @@ module SpinelHTTP
           @wire.no_reuse
           return nil
         end
+        return nil if SpinelHTTP.named?(value, "keep-alive") # (the server's to say)
         @own_connection = true
       end
       @own_date = true if SpinelHTTP.named?(name, "date")
@@ -117,24 +118,14 @@ module SpinelHTTP
       nil
     end
 
-    # The value of a header set so far, "" when absent.
+    # The value of a header set so far, its name matched without regard to
+    # case; "" when absent.
     def header_value(name)
-      i = 0
-      while i < @headers.size
-        return @headers[i + 1] if @headers[i] == name
-        i += 2
-      end
-      ""
+      k = find_header(name.downcase)
+      k < 0 ? "" : @headers[k + 1]
     end
 
-    def header?(name)
-      i = 0
-      while i < @headers.size
-        return true if @headers[i] == name
-        i += 2
-      end
-      false
-    end
+    def header?(name) = find_header(name.downcase) >= 0
 
     def write(data)
       return nil if no_body?
@@ -255,6 +246,15 @@ module SpinelHTTP
     end
 
     private
+
+    def find_header(lower)
+      i = 0
+      while i < @headers.size
+        return i if SpinelHTTP.named?(@headers[i], lower)
+        i += 2
+      end
+      -1
+    end
 
     # Nothing of the body goes out: a HEAD request, or a status without one.
     def silent? = @wire.head_only? || no_body?

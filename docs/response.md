@@ -5,8 +5,8 @@ The `res` a handler gets.
 | | |
 |---|---|
 | `status=`, `status` | 200 by default. |
-| `header(name, value)` | Adds a header. `ArgumentError` for a bad name, a value with CR or LF, or `content-length` / `transfer-encoding`, which are the server's. `connection: close` closes after this answer; a `date` replaces the server's. |
-| `header_value(name)`, `header?(name)` | A header set so far. |
+| `header(name, value)` | Adds a header. `ArgumentError` for a bad name, a value with CR or LF, or `content-length` / `transfer-encoding`, which are the server's. `connection: close` closes after this answer, and `connection: keep-alive` is ignored: whether the connection stays is the server's to say. A `date` replaces the server's. |
+| `header_value(name)`, `header?(name)` | A header set so far, its name matched without regard to case. |
 | `write(string)` | Appends to the body. |
 | `write_int(integer)` | Appends the digits without building a String. |
 | `text(string)` | `write`, plus `content-type: text/plain; charset=utf-8` when no type was set. |
