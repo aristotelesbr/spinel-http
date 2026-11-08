@@ -1,16 +1,8 @@
 # http
 
 An HTTP/1.1 server for [Spinel](https://github.com/matz/spinel), in plain
-Ruby. It compiles to a native binary and also runs on CRuby.
-
-## Start
-
-```sh
-spin new myapp && cd myapp
-spin add http --path ../spinel-http-server   # where you cloned this repo
-```
-
-`bin/myapp.rb`:
+Ruby. It compiles to a native binary, and the same code runs on CRuby,
+which its tests use as the oracle.
 
 ```ruby
 require "http/server"
@@ -28,37 +20,42 @@ HTTP::Server.new(routes, port: 8080).listen
 ```
 
 ```sh
-spin run
-curl "localhost:8080/?name=Ruby"   # Hello, Ruby!
+spin new myapp && cd myapp
+spin add http --path ../spinel-http-server   # where you cloned this repo
+spin run                                     # with the code above in bin/myapp.rb
+curl "localhost:8080/?name=Ruby"             # Hello, Ruby!
 ```
 
-## Handlers
+## What it does
 
-A handler is any object with `call(req, res)`. A route can take
-parameters: `routes.get "/posts/:id", ShowPost.new`, then
-`req.param("id")`.
+- HTTP/1.1 and 1.0: keep-alive, chunked bodies both ways, streaming,
+  `expect: 100-continue`, `HEAD`, `OPTIONS`.
+- One green thread per connection, code written as blocking code.
+- A router with `:params`, namespaces, and layers that run `before` and
+  `after` a handler.
+- Limits and timeouts on by default; a strict parser that refuses an
+  ambiguous request and closes.
+- `HTTP::Testing`, which sends requests through the real server.
 
-To run code before every route, add an object with `before(req, res)`.
-Raising `HTTP::Unauthorized`, `HTTP::NotFound` and the like answers with
-that status:
+## What it does not do
 
-```ruby
-class RequireToken
-  def before(req, res)
-    raise HTTP::Unauthorized unless req.header("authorization") == "Bearer secret"
-  end
-end
+- TLS and HTTP/2: put a proxy in front.
+- Subtree patterns (`/static/...`) and redirects for a cleaned path or a
+  trailing slash.
+- A block DSL (`get "/" do ... end`): handlers are objects, see
+  [DECISIONS.md](DECISIONS.md).
 
-routes.use RequireToken.new
-```
+## Docs
 
-## Limits
-
-Safe limits and timeouts are on by default. Change them on the server:
-
-```ruby
-HTTP::Server.new(routes, port: 8080, max_body_bytes: 10_485_760, idle_timeout: 30.0)
-```
+| | |
+|---|---|
+| [docs/server.md](docs/server.md) | Options, limits, what the server answers by itself, errors. |
+| [docs/router.md](docs/router.md) | Patterns, precedence, layers, what is refused, differences from Go's ServeMux. |
+| [docs/request.md](docs/request.md) | The request, its params and its body. |
+| [docs/response.md](docs/response.md) | Writing, streaming, error answers. |
+| [docs/testing.md](docs/testing.md) | `HTTP::Testing` and `spin test`. |
+| [DECISIONS.md](DECISIONS.md) | What was chosen, refused and left out, and why. |
+| [examples/](examples/) | `hello.rb`; `notes.rb`, a small service with a token. |
 
 ## License
 

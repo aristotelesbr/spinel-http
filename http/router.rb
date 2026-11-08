@@ -266,7 +266,7 @@ module HTTP
   end
 
   #   routes = HTTP::Router.new
-  #   routes.use AccessLog.new
+  #   routes.use Timing.new
   #   routes.get "/posts/:id", ShowPost.new
   #   routes.namespace "/admin", use: [RequireToken.new] do |admin|
   #     admin.get "/", Dashboard.new
