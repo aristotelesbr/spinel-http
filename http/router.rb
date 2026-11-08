@@ -13,10 +13,11 @@ module HTTP
 
   # A path pattern split at boot: literal segments and :param segments.
   class Pattern
-    attr_reader :text
+    attr_reader :text, :shape
 
     def initialize(text)
       @text = text
+      @shape = text.split("/", -1).map { |seg| seg.start_with?(":") ? ":" : seg }.join("/")
       @segs = []
       @names = []
       text.split("/").each do |seg|
@@ -309,7 +310,10 @@ module HTTP
       text = scope.join(path)
       group = @groups.find { |g| g.pattern.text == text }
       if group.nil?
-        group = PathGroup.new(Pattern.new(text))
+        pattern = Pattern.new(text)
+        other = @groups.find { |g| g.pattern.params? && g.pattern.shape == pattern.shape }
+        raise ArgumentError, "#{text} matches the same paths as #{other.pattern.text}: name its params the same" if other
+        group = PathGroup.new(pattern)
         @groups << group
       end
       route = Route.new(verb, handler, scope)

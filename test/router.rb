@@ -157,7 +157,8 @@ show HTTP::Testing.request(routes, "GET /admin/nothing")
 show HTTP::Testing.request(routes, "GET /admin/reports/monthly", headers: { "authorization" => "Bearer t" })
 show HTTP::Testing.request(routes, "GET /admin/reports/monthly", headers: { "authorization" => "Bearer t", "x-role" => "finance" })
 
-# Mistakes are caught when routes are declared.
+# Mistakes are caught when routes are declared, two :params at one
+# position with different names among them.
 class Nothing
 end
 
@@ -174,6 +175,8 @@ refused { more.get "posts", Show.new }
 refused { more.get "/a/:", Show.new }
 more.get "/a", Show.new
 refused { more.get "/a", Show.new }
+more.get "/p/:id", Show.new
+refused { more.post "/p/:name", Show.new }
 refused { more.namespace("/") { |s| s.get "/x", Show.new } }
 refused { more.namespace("/b/") { |s| s.get "/x", Show.new } }
 more.namespace("/c") { |s| s.get "/x", Show.new }

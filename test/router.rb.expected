@@ -26,6 +26,7 @@ refused: Nothing has neither before nor after
 refused: path must start with /: "posts"
 refused: param without a name in "/a/:"
 refused: GET /a is already routed
+refused: /p/:name matches the same paths as /p/:id: name its params the same
 refused: namespace "/" is the router itself: use its #use
 refused: namespace "/b/" ends in /
 refused: namespace "/c" is already open
