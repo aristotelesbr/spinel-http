@@ -35,7 +35,8 @@ end
   bad escape is a 400. `%2F` decodes to `/`: check a value before it
   names a file.
 - A path with a `.` or `..` segment, written or escaped (`%2e%2e`), is a
-  400 before any route sees it.
+  400 before any route sees it. Like a 404, it goes through the layers of
+  the scope the path is in.
 
 ## Answers
 
@@ -53,8 +54,8 @@ A layer is an object with `before(req, res)`, `after(req, res)` or both.
 - A before stops the request by raising `SpinelHTTP::Error` or by calling
   `res.halt`. The handler and the later befores are skipped.
 - Afters run in reverse order once the response is final, for every
-  layer whose before ran, also when the handler raised. `res.status` and
-  `res.error` tell how it went.
+  layer the chain reached (up to the before that stopped it), also when
+  the handler raised. `res.status` and `res.error` tell how it went.
 - An after that raises turns the response into a 500 while it can still
   change; the other afters run all the same.
 - `req.context` carries one object from a layer to the handler.

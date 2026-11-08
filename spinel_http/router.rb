@@ -35,6 +35,8 @@ module SpinelHTTP
 
     def params? = @names.any? { |n| !n.empty? }
 
+    # Hands the :param values of path to req; what is wrong with them, ""
+    # when nothing is. A bad escape raises SpinelHTTP::BadRequest.
     def extract(path, req)
       pos = 1
       i = 0
@@ -42,13 +44,13 @@ module SpinelHTTP
         stop = path.index("/", pos) || path.size
         unless @names[i].empty?
           value = Params.unescape(path[pos, stop - pos])
-          raise BadRequest, "a . or .. segment" if value == "." || value == ".."
+          return "a . or .. segment" if value == "." || value == ".."
           req.add_param(@names[i], value)
         end
         pos = stop + 1
         i += 1
       end
-      nil
+      ""
     end
   end
 
@@ -355,7 +357,7 @@ module SpinelHTTP
     def call(req, res)
       prepare unless @ready # (the server prepares before accepting)
       path = req.path
-      raise BadRequest, "a . or .. segment" if dot_segment?(path)
+      return refuse(path, "a . or .. segment", req, res) if dot_segment?(path)
       group = @exact[path]
       if group.nil?
         k = @tree.lookup(path, 0)
@@ -363,7 +365,8 @@ module SpinelHTTP
       end
       route = group&.route_for(req.method)
       if route
-        group.pattern.extract(path, req)
+        bad = extract(group.pattern, path, req)
+        return refuse(path, bad, req, res) unless bad.empty?
         run(route.steps, req, res) { route.handler.call(req, res) }
         return nil
       end
@@ -400,6 +403,21 @@ module SpinelHTTP
     end
 
     private
+
+    # A 400 for a path no route may see, through the layers of its scope
+    # as a 404 goes.
+    def refuse(path, message, req, res)
+      run(scope_for(path).chain, req, res) { raise BadRequest, message }
+      nil
+    end
+
+    # (The message is read in the rescue itself: handing `e` on trips a
+    # Spinel dispatch bug, spinel-findings 178.)
+    def extract(pattern, path, req)
+      pattern.extract(path, req)
+    rescue BadRequest => e
+      e.message
+    end
 
     # Whether a segment of the path is "." or "..".
     def dot_segment?(path)
