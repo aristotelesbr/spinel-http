@@ -21,9 +21,9 @@ SpinelHTTP::Server.new(routes, port: 8080).listen
 
 ```sh
 spin new myapp && cd myapp
-spin add spinel_http --path ../spinel-http-server  # where you cloned this repo
-spin run                                           # with the code above in bin/myapp.rb
-curl "localhost:8080/?name=Ruby"                   # Hello, Ruby!
+spin add spinel_http --git https://github.com/aristotelesbr/spinel-http
+spin run                           # with the code above in bin/myapp.rb
+curl "localhost:8080/?name=Ruby"   # Hello, Ruby!
 ```
 
 ## What it does
