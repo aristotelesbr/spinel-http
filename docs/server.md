@@ -1,7 +1,7 @@
 # Server
 
 `SpinelHTTP::Server.new(app, **options)` serves `app`, any object with
-`call(req, res)`, usually an `SpinelHTTP::Router`. HTTP/1.1 and 1.0 over TCP:
+`call(req, res)`, usually a `SpinelHTTP::Router`. HTTP/1.1 and 1.0 over TCP:
 keep-alive, chunked bodies, streaming. No TLS and no HTTP/2: put a proxy
 in front for those (nginx, Caddy, a load balancer), which speaks HTTP/1.1
 to it.
@@ -47,6 +47,8 @@ second per 64 KB received. Past it: 408.
 - The parser refuses a request a proxy could read two ways, and closes:
   two lengths, a length beside `transfer-encoding: chunked`, a bare LF, a
   space before a colon.
+- An accept that fails (out of descriptors, a peer gone first) is tried
+  again after a pause; the server keeps running.
 - A watchdog thread checks the open connections every half second and
   closes the ones past a timeout. A waiting connection has no timer of
   its own.

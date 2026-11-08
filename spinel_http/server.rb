@@ -12,8 +12,8 @@ module SpinelHTTP
   # connections and serves each on its own green thread; #serve serves one
   # stream that is already open.
   #
-  # An SpinelHTTP::Error raised by the app becomes its status; anything else a 500
-  # (with the detail on stderr). Both go through the errors object, which
+  # A SpinelHTTP::Error raised by the app becomes its status; anything else
+  # a 500 (with the detail on stderr). Both go through the errors object, which
   # answers `call(status, message, res)`.
   class Server
     attr_reader :idle_timeout, :header_timeout, :max_header_bytes, :max_body_bytes, :port
@@ -69,7 +69,7 @@ module SpinelHTTP
       watchdog = Thread.new { watch }
       until @stopping
         next if listener.wait_readable(0.2).nil?
-        spawn(listener.accept)
+        spawn(accept(listener))
       end
       listener.close
       watchdog.join
@@ -84,6 +84,7 @@ module SpinelHTTP
     # Each connection gets its own thread and its own `sock`: a local of the
     # accept loop would be shared by every thread it starts.
     def spawn(sock)
+      return nil if sock.nil?
       @lock.synchronize { @active += 1 }
       Thread.new do
         serve(sock)
@@ -157,6 +158,16 @@ module SpinelHTTP
     end
 
     private
+
+    # The next connection, or nil when the accept failed: out of
+    # descriptors (EMFILE), a peer gone before it was taken. The loop goes
+    # on after a pause instead of ending the server.
+    def accept(listener)
+      listener.accept
+    rescue SystemCallError, IOError
+      sleep 0.05
+      nil
+    end
 
     def keep_date
       until @stopping
