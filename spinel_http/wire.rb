@@ -587,7 +587,7 @@ module SpinelHTTP
       while from < to
         b = @buf.getbyte(from)
         break if b == 59
-        d = hex(b)
+        d = Params.hex(b)
         raise SpinelHTTP::Error.new(400, "bad chunk size") if d < 0
         digits += 1
         raise SpinelHTTP::Error.new(413, "body too large") if digits > 12
@@ -596,13 +596,6 @@ module SpinelHTTP
       end
       raise SpinelHTTP::Error.new(400, "bad chunk size") if digits == 0
       n
-    end
-
-    def hex(b)
-      return b - 48 if b >= 48 && b <= 57
-      return b - 87 if b >= 97 && b <= 102
-      return b - 55 if b >= 65 && b <= 70
-      -1
     end
 
     def take(k)
@@ -619,21 +612,6 @@ module SpinelHTTP
         k += 4
       end
       -1
-    end
-
-    def count(name)
-      n = 0
-      k = find(name, 0)
-      while k >= 0
-        n += 1
-        k = find(name, k + 4)
-      end
-      n
-    end
-
-    def value_is?(name, value)
-      k = find(name, 0)
-      k >= 0 && same?(@offs[k + 2], @offs[k + 3], value, true)
     end
 
     def same?(from, to, want, fold)
