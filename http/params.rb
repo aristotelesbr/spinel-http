@@ -195,7 +195,31 @@ module HTTP
       neg ? -n : n
     end
 
-    def hex(b)
+    def hex(b) = Params.hex(b)
+
+    # A path segment with its %XX escapes decoded ("+" stays a plus): the
+    # value of a :param. A bad escape raises HTTP::BadRequest.
+    def self.unescape(s)
+      return s unless s.include?("%")
+      out = s.dup
+      n = out.bytesize
+      r = 0
+      w = 0
+      while r < n
+        b = out.getbyte(r)
+        if b == 37
+          raise BadRequest, "bad %-escape" unless r + 2 < n && hex(out.getbyte(r + 1)) >= 0 && hex(out.getbyte(r + 2)) >= 0
+          b = hex(out.getbyte(r + 1)) * 16 + hex(out.getbyte(r + 2))
+          r += 2
+        end
+        out.setbyte(w, b)
+        w += 1
+        r += 1
+      end
+      out.byteslice(0, w)
+    end
+
+    def self.hex(b)
       return b - 48 if b >= 48 && b <= 57
       return b - 55 if b >= 65 && b <= 70
       return b - 87 if b >= 97 && b <= 102

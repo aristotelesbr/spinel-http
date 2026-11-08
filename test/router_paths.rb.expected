@@ -1,0 +1,10 @@
+GET /files/report.txt -> 200 [report.txt]
+GET /files/a%2Fb -> 200 [a/b]
+GET /files/caf%C3%A9 -> 200 [café]
+GET /files/a+b -> 200 [a+b]
+GET /files/%zz -> 400 bad %-escape
+GET /files/.. -> 400 a . or .. segment
+GET /files/%2e%2e -> 400 a . or .. segment
+GET /files/./x -> 400 a . or .. segment
+GET /files/../files/x -> 400 a . or .. segment
+GET /files/.hidden -> 200 [.hidden]

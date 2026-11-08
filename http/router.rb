@@ -39,7 +39,11 @@ module HTTP
       i = 0
       while i < @segs.size
         stop = path.index("/", pos) || path.size
-        req.add_param(@names[i], path[pos, stop - pos]) unless @names[i].empty?
+        unless @names[i].empty?
+          value = Params.unescape(path[pos, stop - pos])
+          raise BadRequest, "a . or .. segment" if value == "." || value == ".."
+          req.add_param(@names[i], value)
+        end
         pos = stop + 1
         i += 1
       end
@@ -347,6 +351,7 @@ module HTTP
     def call(req, res)
       prepare unless @ready # (the server prepares before accepting)
       path = req.path
+      raise BadRequest, "a . or .. segment" if dot_segment?(path)
       group = @exact[path]
       if group.nil?
         k = @tree.lookup(path, 0)
@@ -391,6 +396,17 @@ module HTTP
     end
 
     private
+
+    # Whether a segment of the path is "." or "..".
+    def dot_segment?(path)
+      i = path.index("/.")
+      while i
+        stop = path.index("/", i + 1) || path.bytesize
+        return true if stop == i + 2 || (stop == i + 3 && path.getbyte(i + 2) == 46)
+        i = path.index("/.", i + 1)
+      end
+      false
+    end
 
     # The deepest scope covering a path.
     def scope_for(path)
