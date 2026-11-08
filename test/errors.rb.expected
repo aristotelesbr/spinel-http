@@ -5,3 +5,7 @@ RuntimeError: after the head
 /crash 500 text/plain; charset=utf-8 "internal server error\n"
 json 404 application/json "{\"status\":404,\"error\":\"no post 9\"}\n"
 late: true no_500=true terminated=false
+"HTTP/1.1 302 Found\r\n"
+"HTTP/1.1 429 Too Many Requests\r\n"
+"HTTP/1.1 505 HTTP Version Not Supported\r\n"
+Too Many Requests
