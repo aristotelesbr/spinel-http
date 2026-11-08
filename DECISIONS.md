@@ -73,6 +73,12 @@ what was registered.
 **Subtree and rest-of-path patterns (`/static/`, `{path...}`): out of
 scope for now.**
 
+## Name
+
+**`SpinelHTTP` and `spinel_http`: adopted.** A module named `HTTP` is
+also the http.rb gem's, with its own `HTTP::Request`, `HTTP::Response`
+and `HTTP::Error`: on CRuby the two could not be loaded together.
+
 ## Left out
 
 **TLS and HTTP/2: out of scope.** Put a proxy in front (nginx, Caddy, a

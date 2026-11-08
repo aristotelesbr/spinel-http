@@ -6,7 +6,7 @@
 # not at all when it is not, which closes), any other expectation is a 417;
 # a body left unread is drained up to 256 KB, past that the connection
 # closes.
-require "http/testing"
+require "spinel_http/testing"
 
 class SetHeader
   def initialize(name, value)
@@ -58,7 +58,7 @@ def answers(answer)
   out
 end
 
-def show(app, data) = answers(HTTP::Testing.raw(app, data)).each { |a| puts "  #{a}" }
+def show(app, data) = answers(SpinelHTTP::Testing.raw(app, data)).each { |a| puts "  #{a}" }
 
 GET = "GET / HTTP/1.1\r\nhost: t\r\n\r\n"
 LAST = "GET / HTTP/1.1\r\nhost: t\r\nconnection: close\r\n\r\n"

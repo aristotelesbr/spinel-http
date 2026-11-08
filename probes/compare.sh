@@ -48,7 +48,7 @@ shutdown_check() { # name port command...
 
 "$SPINEL" --warn-widen examples/app.rb -o build/app > results/compile.log 2>&1 || {
   echo "compile failed, see results/compile.log"; exit 1; }
-echo "widening warnings in http/: $(grep warning results/compile.log | grep -c ' http/')"
+echo "widening warnings in spinel_http/: $(grep warning results/compile.log | grep -c ' http/')"
 
 run_probe cruby 19610 "$RUBY" examples/app.rb
 run_probe binary 19611 build/app

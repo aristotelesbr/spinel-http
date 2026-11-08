@@ -2,14 +2,14 @@
 # head too large (431), body too large or a number too long (413), any
 # doubt about where the body ends or a bad token (400), an unknown method
 # or transfer coding (501), an unknown version (505).
-require "http/testing"
+require "spinel_http/testing"
 
 class Ok
   def call(req, res) = res.text("ok\n")
 end
 
 def status_of(data, server = nil)
-  answer = HTTP::Testing.raw(Ok.new, data, server: server)
+  answer = SpinelHTTP::Testing.raw(Ok.new, data, server: server)
   line = answer.split("\r\n", 2)[0].to_s
   closes = answer.include?("connection: close")
   "#{line.split(" ")[1] || "none"}#{closes ? " close" : ""}"

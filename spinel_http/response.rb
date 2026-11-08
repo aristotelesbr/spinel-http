@@ -1,4 +1,4 @@
-module HTTP
+module SpinelHTTP
   # Whether s is the lowercase name `lower`, compared without regard to case.
   def self.named?(s, lower)
     return false unless s.bytesize == lower.bytesize
@@ -100,19 +100,19 @@ module HTTP
     # the server's.
     def header(name, value)
       raise IOError, "headers already sent" if @sent
-      if HTTP.named?(name, "content-length") || HTTP.named?(name, "transfer-encoding")
+      if SpinelHTTP.named?(name, "content-length") || SpinelHTTP.named?(name, "transfer-encoding")
         raise ArgumentError, "#{name} is set by the server"
       end
-      raise ArgumentError, "bad header name #{name.inspect}" unless HTTP.token?(name)
-      raise ArgumentError, "bad byte in the value of #{name}" unless HTTP.field_value?(value)
-      if HTTP.named?(name, "connection")
-        if HTTP.named?(value, "close")
+      raise ArgumentError, "bad header name #{name.inspect}" unless SpinelHTTP.token?(name)
+      raise ArgumentError, "bad byte in the value of #{name}" unless SpinelHTTP.field_value?(value)
+      if SpinelHTTP.named?(name, "connection")
+        if SpinelHTTP.named?(value, "close")
           @wire.no_reuse
           return nil
         end
         @own_connection = true
       end
-      @own_date = true if HTTP.named?(name, "date")
+      @own_date = true if SpinelHTTP.named?(name, "date")
       @headers << name << value
       nil
     end

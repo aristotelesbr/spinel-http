@@ -7,12 +7,12 @@ require_relative "response"
 require_relative "router"
 require_relative "log"
 
-module HTTP
+module SpinelHTTP
   # Serves an app: any object with `call(req, res)`. #listen accepts TCP
   # connections and serves each on its own green thread; #serve serves one
   # stream that is already open.
   #
-  # An HTTP::Error raised by the app becomes its status; anything else a 500
+  # An SpinelHTTP::Error raised by the app becomes its status; anything else a 500
   # (with the detail on stderr). Both go through the errors object, which
   # answers `call(status, message, res)`.
   class Server
@@ -105,7 +105,7 @@ module HTTP
         res.reset
         if status > 0
           wire.no_reuse
-          res.fail(status, HTTP.reason(status).downcase)
+          res.fail(status, SpinelHTTP.reason(status).downcase)
           res.finish
           wire.linger unless status == 408
           break
@@ -115,7 +115,7 @@ module HTTP
         break if res.taken?
         wire.no_reuse if @stopping
         bad = wire.drain_body
-        res.fail(bad, HTTP.reason(bad).downcase) if bad > 0 && !res.sent?
+        res.fail(bad, SpinelHTTP.reason(bad).downcase) if bad > 0 && !res.sent?
         res.finish
         @observer&.finished(req, res)
         req.done
@@ -202,7 +202,7 @@ module HTTP
     def call_app(req, res)
       @app.call(req, res)
       nil
-    rescue HTTP::Error => e
+    rescue SpinelHTTP::Error => e
       res.error = e
       res.fail(e.status, e.message)
     rescue StandardError => e

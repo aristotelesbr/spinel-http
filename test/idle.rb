@@ -2,7 +2,7 @@
 # request past idle_timeout (no timer per connection), and a shutdown
 # closes the connections waiting that way at once instead of letting them
 # run out their idle time.
-require "http/server"
+require "spinel_http/server"
 require "socket"
 
 class Ok
@@ -21,7 +21,7 @@ def closed_after(s, limit)
   nil
 end
 
-server = HTTP::Server.new(Ok.new, port: 0, idle_timeout: 1.0, header_timeout: 10.0)
+server = SpinelHTTP::Server.new(Ok.new, port: 0, idle_timeout: 1.0, header_timeout: 10.0)
 port = nil
 thread = Thread.new { server.listen { |p| port = p } }
 sleep 0.01 until port

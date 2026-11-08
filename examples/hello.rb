@@ -1,4 +1,4 @@
-require_relative "../http/server"
+require_relative "../spinel_http/server"
 
 class Hello
   def call(req, res)
@@ -6,5 +6,5 @@ class Hello
   end
 end
 
-server = HTTP::Server.new(Hello.new, port: ENV.fetch("PORT", "8080").to_i)
+server = SpinelHTTP::Server.new(Hello.new, port: ENV.fetch("PORT", "8080").to_i)
 server.listen { |port| puts "listening on 127.0.0.1:#{port}"; $stdout.flush }

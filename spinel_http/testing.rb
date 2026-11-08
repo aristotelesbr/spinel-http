@@ -1,13 +1,13 @@
 require_relative "server"
 
-module HTTP
+module SpinelHTTP
   # Calls an app the way a client would and returns what came back:
   #
-  #   res = HTTP::Testing.request(app, "GET /posts/1", headers: { "accept" => "text/plain" })
+  #   res = SpinelHTTP::Testing.request(app, "GET /posts/1", headers: { "accept" => "text/plain" })
   #   res.status  # => 200
   #   res.body    # => "Hello, Spinel\n"
   #
-  #   HTTP::Testing.raw(app, "GET / HTTP/1.1\r\n\r\n")  # => what the server wrote
+  #   SpinelHTTP::Testing.raw(app, "GET / HTTP/1.1\r\n\r\n")  # => what the server wrote
   #
   # Goes through a loopback socket and the real server, so the request
   # meets the same parser and limits as in production.

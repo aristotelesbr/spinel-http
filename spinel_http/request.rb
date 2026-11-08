@@ -1,8 +1,8 @@
 require_relative "params"
 
-module HTTP
+module SpinelHTTP
   # Seconds on the monotonic clock: the one req.started_at is read from,
-  # so HTTP.now - req.started_at is the time spent on the request so far.
+  # so SpinelHTTP.now - req.started_at is the time spent on the request so far.
   def self.now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
   # The request being served: a view over the connection's buffer, reused
@@ -15,7 +15,7 @@ module HTTP
 
     attr_reader :method, :path
 
-    # HTTP.now when the head of this request had been read.
+    # SpinelHTTP.now when the head of this request had been read.
     attr_reader :started_at
 
     attr_accessor :context
@@ -36,7 +36,7 @@ module HTTP
     end
 
     def reset
-      @started_at = HTTP.now
+      @started_at = SpinelHTTP.now
       @method = @wire.method
       from = @wire.target_from
       to = @wire.target_to
@@ -107,7 +107,7 @@ module HTTP
       nil
     end
 
-    # The fields of the query string, decoded on first use (HTTP::Params,
+    # The fields of the query string, decoded on first use (SpinelHTTP::Params,
     # valid for this request).
     def query_params
       unless @query_parsed

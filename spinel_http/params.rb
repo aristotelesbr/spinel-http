@@ -1,13 +1,13 @@
 require_relative "errors"
 
-module HTTP
+module SpinelHTTP
   # The fields of a query string or of an application/x-www-form-urlencoded
   # body ("q=two+words&tag=a&tag=b"): "+" is a space and "%XX" a byte. A
   # field without "=" has the value ""; empty fields ("a=1&&b=2") are
   # skipped. A bad escape, or more than max_fields fields, raises
-  # HTTP::BadRequest, so the client gets a 400.
+  # SpinelHTTP::BadRequest, so the client gets a 400.
   #
-  #   params = HTTP::Params.new("page=2&tag=a&tag=b")
+  #   params = SpinelHTTP::Params.new("page=2&tag=a&tag=b")
   #   params["page"]          # "2"   ("" when absent)
   #   params.int("page", 1)   # 2     (the default when absent or empty)
   #   params.all("tag")       # ["a", "b"]
@@ -90,7 +90,7 @@ module HTTP
     end
 
     # The first value of name as an Integer: default when absent or empty,
-    # HTTP::BadRequest when it is not one (or has more than 18 digits).
+    # SpinelHTTP::BadRequest when it is not one (or has more than 18 digits).
     def int(name, default)
       name = name.to_s
       i = find(name)
@@ -198,7 +198,7 @@ module HTTP
     def hex(b) = Params.hex(b)
 
     # A path segment with its %XX escapes decoded ("+" stays a plus): the
-    # value of a :param. A bad escape raises HTTP::BadRequest.
+    # value of a :param. A bad escape raises SpinelHTTP::BadRequest.
     def self.unescape(s)
       return s unless s.include?("%")
       out = s.dup

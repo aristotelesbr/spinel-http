@@ -16,10 +16,10 @@ an absent value reads as `""`, never `nil`.
 | `content_length` | The declared length; `-1` for a chunked body. |
 | `body` | The whole body, read on first use, up to `max_body_bytes`. |
 | `each_chunk { \|piece\| }` | The body as it arrives. A piece is valid until the next one. |
-| `query_params` | `HTTP::Params` of the query string. |
-| `form_params` | `HTTP::Params` of an `application/x-www-form-urlencoded` body; empty for any other type. |
+| `query_params` | `SpinelHTTP::Params` of the query string. |
+| `form_params` | `SpinelHTTP::Params` of an `application/x-www-form-urlencoded` body; empty for any other type. |
 | `context`, `context=` | One object of the app's, for this request. |
-| `started_at` | `HTTP.now` when the head had been read. |
+| `started_at` | `SpinelHTTP.now` when the head had been read. |
 
 ## Params
 
@@ -29,16 +29,16 @@ req.query_params.int("page", 1)  # 1 when absent or empty; 400 when not a number
 req.query_params.all("tag")      # ["a", "b"] for ?tag=a&tag=b
 ```
 
-| `HTTP::Params` | |
+| `SpinelHTTP::Params` | |
 |---|---|
 | `new(string)` | Fields of a query string or urlencoded body. |
 | `[name]` | The first value; `""` when absent. |
-| `int(name, default)` | The first value as an Integer. Raises `HTTP::BadRequest` when it is not one. |
+| `int(name, default)` | The first value as an Integer. Raises `SpinelHTTP::BadRequest` when it is not one. |
 | `all(name)`, `key?(name)` | Every value, in order; whether the field is there. |
 | `each { \|name, value\| }`, `size`, `empty?` | |
 
 `+` decodes to a space and `%XX` to a byte. A bad escape, or more than
-1000 fields, raises `HTTP::BadRequest`.
+1000 fields, raises `SpinelHTTP::BadRequest`.
 
 ## Rules
 

@@ -1,4 +1,4 @@
-module HTTP
+module SpinelHTTP
   REASONS = {
     100 => "Continue", 101 => "Switching Protocols",
     200 => "OK", 201 => "Created", 204 => "No Content",
@@ -33,7 +33,7 @@ module HTTP
   class Error < StandardError
     attr_reader :status
 
-    def initialize(status, message = HTTP.reason(status))
+    def initialize(status, message = SpinelHTTP.reason(status))
       super(message)
       @status = status
     end

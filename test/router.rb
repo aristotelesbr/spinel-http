@@ -3,7 +3,7 @@
 # one route, afters seeing the final status and res.error, a before that
 # answers with res.halt, an after that raises (the outer afters still
 # run), namespaces with :params covering their 404s, and req.context.
-require "http/testing"
+require "spinel_http/testing"
 
 class Show
   def call(req, res) = res.text("post #{req.param("id")}\n")
@@ -11,7 +11,7 @@ end
 
 class Create
   def call(req, res)
-    raise HTTP::Error.new(422, "empty body") if req.body.empty?
+    raise SpinelHTTP::Error.new(422, "empty body") if req.body.empty?
     res.status = 201
     res.text("created\n")
   end
@@ -51,7 +51,7 @@ end
 
 class Token
   def before(req, res)
-    raise HTTP::Unauthorized unless req.header("authorization") == "Bearer t"
+    raise SpinelHTTP::Unauthorized unless req.header("authorization") == "Bearer t"
     req.context = Session.new("ana", req.header("x-role"))
   end
 end
@@ -62,7 +62,7 @@ class Role
   end
 
   def before(req, res)
-    raise HTTP::Error.new(403, "forbidden") unless req.context.role == @role
+    raise SpinelHTTP::Error.new(403, "forbidden") unless req.context.role == @role
   end
 end
 
@@ -99,7 +99,7 @@ end
 
 class Member
   def before(req, res)
-    raise HTTP::Unauthorized unless req.header("authorization") == "Bearer t"
+    raise SpinelHTTP::Unauthorized unless req.header("authorization") == "Bearer t"
   end
 end
 
@@ -113,7 +113,7 @@ class Preflight
   end
 end
 
-routes = HTTP::Router.new
+routes = SpinelHTTP::Router.new
 routes.use Tag.new
 routes.get "/posts/:id", Show.new
 routes.post "/posts", Create.new, use: [Tx.new]
@@ -134,28 +134,28 @@ end
 
 def show(r) = puts("#{r.status} tag=#{r.header("x-tag")} allow=#{r.header("allow")} tx=#{r.header("x-tx")} etag=#{r.header("etag")} #{r.body.inspect}")
 
-show HTTP::Testing.request(routes, "GET /posts/42")
-show HTTP::Testing.request(routes, "GET /nowhere")
-show HTTP::Testing.request(routes, "DELETE /posts/1")
-show HTTP::Testing.request(routes, "OPTIONS /posts/1")
-show HTTP::Testing.request(routes, "HEAD /posts/1")
-show HTTP::Testing.request(routes, "POST /posts", body: "x")
-show HTTP::Testing.request(routes, "POST /posts")
-show HTTP::Testing.request(routes, "POST /boom")
-show HTTP::Testing.request(routes, "POST /admin/login")
-show HTTP::Testing.request(routes, "GET /page")
-show HTTP::Testing.request(routes, "GET /page", headers: { "if-none-match" => "v1" })
-show HTTP::Testing.request(routes, "POST /api", headers: { "access-control-request-method" => "POST" })
-show HTTP::Testing.request(routes, "POST /api")
-show HTTP::Testing.request(routes, "GET /fragile")
-show HTTP::Testing.request(routes, "GET /orgs/1/teams/2")
-show HTTP::Testing.request(routes, "GET /orgs/1/nope")
-show HTTP::Testing.request(routes, "GET /orgs/1/nope", headers: { "authorization" => "Bearer t" })
-show HTTP::Testing.request(routes, "GET /admin")
-show HTTP::Testing.request(routes, "GET /admin", headers: { "authorization" => "Bearer t" })
-show HTTP::Testing.request(routes, "GET /admin/nothing")
-show HTTP::Testing.request(routes, "GET /admin/reports/monthly", headers: { "authorization" => "Bearer t" })
-show HTTP::Testing.request(routes, "GET /admin/reports/monthly", headers: { "authorization" => "Bearer t", "x-role" => "finance" })
+show SpinelHTTP::Testing.request(routes, "GET /posts/42")
+show SpinelHTTP::Testing.request(routes, "GET /nowhere")
+show SpinelHTTP::Testing.request(routes, "DELETE /posts/1")
+show SpinelHTTP::Testing.request(routes, "OPTIONS /posts/1")
+show SpinelHTTP::Testing.request(routes, "HEAD /posts/1")
+show SpinelHTTP::Testing.request(routes, "POST /posts", body: "x")
+show SpinelHTTP::Testing.request(routes, "POST /posts")
+show SpinelHTTP::Testing.request(routes, "POST /boom")
+show SpinelHTTP::Testing.request(routes, "POST /admin/login")
+show SpinelHTTP::Testing.request(routes, "GET /page")
+show SpinelHTTP::Testing.request(routes, "GET /page", headers: { "if-none-match" => "v1" })
+show SpinelHTTP::Testing.request(routes, "POST /api", headers: { "access-control-request-method" => "POST" })
+show SpinelHTTP::Testing.request(routes, "POST /api")
+show SpinelHTTP::Testing.request(routes, "GET /fragile")
+show SpinelHTTP::Testing.request(routes, "GET /orgs/1/teams/2")
+show SpinelHTTP::Testing.request(routes, "GET /orgs/1/nope")
+show SpinelHTTP::Testing.request(routes, "GET /orgs/1/nope", headers: { "authorization" => "Bearer t" })
+show SpinelHTTP::Testing.request(routes, "GET /admin")
+show SpinelHTTP::Testing.request(routes, "GET /admin", headers: { "authorization" => "Bearer t" })
+show SpinelHTTP::Testing.request(routes, "GET /admin/nothing")
+show SpinelHTTP::Testing.request(routes, "GET /admin/reports/monthly", headers: { "authorization" => "Bearer t" })
+show SpinelHTTP::Testing.request(routes, "GET /admin/reports/monthly", headers: { "authorization" => "Bearer t", "x-role" => "finance" })
 
 # Mistakes are caught when routes are declared, two :params at one
 # position with different names among them.
@@ -169,7 +169,7 @@ rescue ArgumentError => e
   puts "refused: #{e.message}"
 end
 
-more = HTTP::Router.new
+more = SpinelHTTP::Router.new
 refused { more.use Nothing.new }
 refused { more.get "posts", Show.new }
 refused { more.get "/a/:", Show.new }

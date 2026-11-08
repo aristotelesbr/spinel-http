@@ -1,10 +1,10 @@
 # Router
 
-`HTTP::Router` maps a verb and a path to a handler, an object with
+`SpinelHTTP::Router` maps a verb and a path to a handler, an object with
 `call(req, res)`, and runs layers around it.
 
 ```ruby
-routes = HTTP::Router.new
+routes = SpinelHTTP::Router.new
 routes.use Timing.new
 routes.get "/posts/:id", ShowPost.new
 routes.namespace "/admin", use: [RequireToken.new] do |admin|
@@ -50,7 +50,7 @@ A layer is an object with `before(req, res)`, `after(req, res)` or both.
 
 - Befores run in order: the router's, then each enclosing namespace's,
   then the route's own `use:`.
-- A before stops the request by raising `HTTP::Error` or by calling
+- A before stops the request by raising `SpinelHTTP::Error` or by calling
   `res.halt`. The handler and the later befores are skipped.
 - Afters run in reverse order once the response is final, for every
   layer whose before ran, also when the handler raised. `res.status` and

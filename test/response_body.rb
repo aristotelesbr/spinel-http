@@ -1,7 +1,7 @@
 # Without flush the response goes out whole with Content-Length; flush
 # sends the head and streams the rest as chunks. text sets a text/plain
 # content type unless one was set; write_int writes digits.
-require "http/testing"
+require "spinel_http/testing"
 
 class Whole
   def call(req, res)
@@ -24,11 +24,11 @@ class Streamed
   end
 end
 
-r = HTTP::Testing.request(Whole.new, "GET /")
+r = SpinelHTTP::Testing.request(Whole.new, "GET /")
 puts r.status, r.header("x-id"), r.header("content-type"), r.header("content-length"), r.body.inspect
-r = HTTP::Testing.request(Streamed.new, "GET /")
+r = SpinelHTTP::Testing.request(Streamed.new, "GET /")
 puts r.header("transfer-encoding"), r.header("content-type"), r.body.inspect
-r = HTTP::Testing.request(Whole.new, "HEAD /")
+r = SpinelHTTP::Testing.request(Whole.new, "HEAD /")
 puts r.status, r.header("content-length"), r.body.inspect
 
 # A write that would take the buffer past 64 KB goes straight out, after
@@ -42,6 +42,6 @@ class Large
   end
 end
 
-r = HTTP::Testing.request(Large.new, "GET /")
+r = SpinelHTTP::Testing.request(Large.new, "GET /")
 b = r.body
 puts r.header("transfer-encoding"), b.bytesize, b.start_with?("head x"), b.count("x"), b.count("y"), b.end_with?("y tail")

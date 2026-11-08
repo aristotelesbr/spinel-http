@@ -1,4 +1,4 @@
-module HTTP
+module SpinelHTTP
   # The socket side of one connection: reads heads and bodies through its
   # own buffer and writes responses through another. Holds every limit the
   # server promises: head size and grammar, number sizes, time to send a
@@ -137,7 +137,7 @@ module HTTP
     def content_length = @mode == 2 ? -1 : @left_declared
 
     # Puts the next piece of the body in #chunk and answers its size; 0 at
-    # the end of the body. Raises HTTP::Error on a body that breaks the
+    # the end of the body. Raises SpinelHTTP::Error on a body that breaks the
     # limits or the grammar, or that stops coming.
     def read_body_chunk
       return 0 if @mode == 0
@@ -168,7 +168,7 @@ module HTTP
         return give_up if drained > MAX_DRAIN
       end
       0
-    rescue HTTP::Error => e
+    rescue SpinelHTTP::Error => e
       @keep = false
       e.status
     end
@@ -215,7 +215,7 @@ module HTTP
         @continue = false
         @keep = false
       end
-      @out.replace(HTTP.status_line(status))
+      @out.replace(SpinelHTTP.status_line(status))
       i = 0
       while i < headers.size
         @out << headers[i] << ": " << headers[i + 1] << "\r\n"
@@ -344,7 +344,7 @@ module HTTP
     def fill_body
       compact if @start >= READ
       left = @body_from + @limits.header_timeout + @received / MIN_RATE - now
-      raise HTTP::Error.new(408, "body timeout") if left <= 0 || !fill(left)
+      raise SpinelHTTP::Error.new(408, "body timeout") if left <= 0 || !fill(left)
       nil
     end
 
@@ -523,12 +523,12 @@ module HTTP
       end
       compact
       left = @body_from + @limits.header_timeout + @received / MIN_RATE - now
-      raise HTTP::Error.new(408, "body timeout") if left <= 0 || @sock.wait_readable(left).nil?
+      raise SpinelHTTP::Error.new(408, "body timeout") if left <= 0 || @sock.wait_readable(left).nil?
       @sock.readpartial(@left < CHUNK ? @left : CHUNK, @chunk)
       @received += @chunk.bytesize
       @chunk.bytesize
     rescue EOFError
-      raise HTTP::Error.new(408, "body timeout")
+      raise SpinelHTTP::Error.new(408, "body timeout")
     end
 
     # States: 0 size line, 1 data, 2 CRLF after data, 3 trailers.
@@ -541,7 +541,7 @@ module HTTP
           return k
         elsif @state == 2
           fill_to(2)
-          raise HTTP::Error.new(400, "bad chunk") unless @buf.byteindex("\r\n", @start) == @start
+          raise SpinelHTTP::Error.new(400, "bad chunk") unless @buf.byteindex("\r\n", @start) == @start
           @start += 2
           @state = 0
         elsif @state == 0
@@ -552,7 +552,7 @@ module HTTP
             @state = 3
           else
             @total += size
-            raise HTTP::Error.new(413, "body too large") if @total > @limits.max_body_bytes
+            raise SpinelHTTP::Error.new(413, "body too large") if @total > @limits.max_body_bytes
             @left = size
             @state = 1
           end
@@ -574,7 +574,7 @@ module HTTP
       loop do
         nl = @buf.byteindex("\r\n", @start)
         return nl if nl && nl - @start <= max
-        raise HTTP::Error.new(400, "line too long") if @buf.bytesize - @start > max
+        raise SpinelHTTP::Error.new(400, "line too long") if @buf.bytesize - @start > max
         fill_body
       end
     end
@@ -588,13 +588,13 @@ module HTTP
         b = @buf.getbyte(from)
         break if b == 59
         d = hex(b)
-        raise HTTP::Error.new(400, "bad chunk size") if d < 0
+        raise SpinelHTTP::Error.new(400, "bad chunk size") if d < 0
         digits += 1
-        raise HTTP::Error.new(413, "body too large") if digits > 12
+        raise SpinelHTTP::Error.new(413, "body too large") if digits > 12
         n = n * 16 + d
         from += 1
       end
-      raise HTTP::Error.new(400, "bad chunk size") if digits == 0
+      raise SpinelHTTP::Error.new(400, "bad chunk size") if digits == 0
       n
     end
 

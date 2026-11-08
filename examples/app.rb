@@ -1,5 +1,5 @@
 # Example app for the v0.1 feature set; probes/probe.rb drives it.
-require_relative "../http/server"
+require_relative "../spinel_http/server"
 
 POSTS = { "1" => "Hello, Spinel", "2" => "Second post" }
 
@@ -20,14 +20,14 @@ end
 
 class ShowPost
   def call(req, res)
-    title = POSTS.fetch(req.param("id")) { raise HTTP::NotFound, "no post #{req.param("id")}" }
+    title = POSTS.fetch(req.param("id")) { raise SpinelHTTP::NotFound, "no post #{req.param("id")}" }
     res.text("#{title}\n")
   end
 end
 
 class CreatePost
   def call(req, res)
-    raise HTTP::Error.new(422, "empty body") if req.body.empty?
+    raise SpinelHTTP::Error.new(422, "empty body") if req.body.empty?
     res.status = 201
     res.text("created #{req.body.bytesize} bytes\n")
   end
@@ -74,7 +74,7 @@ end
 
 class RequireToken
   def before(req, res)
-    raise HTTP::Unauthorized unless req.header("authorization") == "Bearer secret"
+    raise SpinelHTTP::Unauthorized unless req.header("authorization") == "Bearer secret"
     req.context = Session.new("admin")
     nil
   end
@@ -88,7 +88,7 @@ class Transaction
   end
 end
 
-routes = HTTP::Router.new
+routes = SpinelHTTP::Router.new
 routes.get "/", Home.new
 routes.get "/posts/new", NewPost.new
 routes.get "/posts/:id", ShowPost.new
@@ -102,9 +102,9 @@ routes.namespace "/admin", use: [RequireToken.new] do |admin|
   admin.get "/", Dashboard.new
 end
 
-server = HTTP::Server.new(routes,
+server = SpinelHTTP::Server.new(routes,
   port: ENV.fetch("PORT", "8080").to_i,
-  observer: HTTP::AccessLog.new($stderr),
+  observer: SpinelHTTP::AccessLog.new($stderr),
   idle_timeout: ENV.fetch("IDLE", "5").to_f,
   max_header_bytes: 4096,
   max_body_bytes: 65536)

@@ -38,11 +38,11 @@ class JSONErrors
   end
 end
 
-HTTP::Server.new(routes, errors: JSONErrors.new)
+SpinelHTTP::Server.new(routes, errors: JSONErrors.new)
 ```
 
-The default, `HTTP::PlainErrors`, writes the message as plain text.
-`HTTP.reason(status)` gives the reason phrase (`"Not Found"`).
+The default, `SpinelHTTP::PlainErrors`, writes the message as plain text.
+`SpinelHTTP.reason(status)` gives the reason phrase (`"Not Found"`).
 
 ## Tested by
 

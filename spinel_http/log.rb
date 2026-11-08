@@ -1,4 +1,4 @@
-module HTTP
+module SpinelHTTP
   # Observer that prints one line per request: method, target, status,
   # body bytes.
   class AccessLog

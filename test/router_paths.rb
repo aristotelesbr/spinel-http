@@ -1,13 +1,13 @@
 # A :param arrives with its %XX escapes decoded ("+" stays a plus), and a
 # path with a "." or ".." segment, written or escaped, is a 400 before any
 # route sees it.
-require "http/testing"
+require "spinel_http/testing"
 
 class ShowName
   def call(req, res) = res.text("[#{req.param("name")}]\n")
 end
 
-routes = HTTP::Router.new
+routes = SpinelHTTP::Router.new
 routes.get "/files/:name", ShowName.new
 
 [
@@ -22,6 +22,6 @@ routes.get "/files/:name", ShowName.new
   "GET /files/../files/x",
   "GET /files/.hidden",
 ].each do |line|
-  res = HTTP::Testing.request(routes, line)
+  res = SpinelHTTP::Testing.request(routes, line)
   puts "#{line} -> #{res.status} #{res.body.chomp}"
 end

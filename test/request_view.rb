@@ -1,8 +1,8 @@
 # The request is a view over the connection's buffer: method, path and
 # query come from the request line; header names match without regard to
 # case; a header that was not sent reads as "". req.started_at is when
-# the head had been read, on the clock of HTTP.now.
-require "http/testing"
+# the head had been read, on the clock of SpinelHTTP.now.
+require "spinel_http/testing"
 
 class Show
   def call(req, res)
@@ -15,16 +15,16 @@ class Show
   end
 end
 
-r = HTTP::Testing.request(Show.new, "GET /posts/1?x=1&y=2", headers: { "Accept" => "text/plain" })
+r = SpinelHTTP::Testing.request(Show.new, "GET /posts/1?x=1&y=2", headers: { "Accept" => "text/plain" })
 puts r.status
 puts r.body
-r = HTTP::Testing.request(Show.new, "POST /up", body: "hello")
+r = SpinelHTTP::Testing.request(Show.new, "POST /up", body: "hello")
 puts r.body
 
 # A layer timing the handler through req.started_at.
 class Timed
   def after(req, res)
-    took = HTTP.now - req.started_at
+    took = SpinelHTTP.now - req.started_at
     res.header("x-timed", took >= 0.05 && took < 5.0 ? "ok" : "off: #{took}") unless res.sent?
   end
 end
@@ -36,7 +36,7 @@ class Nap
   end
 end
 
-routes = HTTP::Router.new
+routes = SpinelHTTP::Router.new
 routes.get "/nap", Nap.new, use: [Timed.new]
-r = HTTP::Testing.request(routes, "GET /nap")
+r = SpinelHTTP::Testing.request(routes, "GET /nap")
 puts "#{r.status} timed=#{r.header("x-timed")} #{r.body}"

@@ -1,4 +1,4 @@
-module HTTP
+module SpinelHTTP
   # A layer plus which of `before` and `after` it has, decided at boot.
   class Step
     attr_reader :layer, :opens, :closes
@@ -265,7 +265,7 @@ module HTTP
     end
   end
 
-  #   routes = HTTP::Router.new
+  #   routes = SpinelHTTP::Router.new
   #   routes.use Timing.new
   #   routes.get "/posts/:id", ShowPost.new
   #   routes.namespace "/admin", use: [RequireToken.new] do |admin|
@@ -274,7 +274,7 @@ module HTTP
   #
   # A layer is any object with `before(req, res)`, `after(req, res)` or
   # both. Befores run in order (outer scopes first, a route's own `use:`
-  # last). One stops the chain by raising HTTP::Error (its status becomes
+  # last). One stops the chain by raising SpinelHTTP::Error (its status becomes
   # the response) or by answering with res.halt(status). Afters run in
   # reverse, once the response is final, for every layer whose before ran
   # (or that has none) up to where the chain stopped; res.error tells why
@@ -434,7 +434,7 @@ module HTTP
           break if res.halted?
         end
         yield unless res.halted?
-      rescue HTTP::Error => e
+      rescue SpinelHTTP::Error => e
         res.error = e
         res.fail(e.status, e.message)
       rescue StandardError => e

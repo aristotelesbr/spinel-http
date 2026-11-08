@@ -2,7 +2,7 @@
 # a :param at the same place (falling back to the param when the literal
 # branch has no route), params nest, and "/" and trailing slashes match
 # only what is registered.
-require "http/testing"
+require "spinel_http/testing"
 
 class Name
   def initialize(name)
@@ -14,7 +14,7 @@ class Name
   end
 end
 
-routes = HTTP::Router.new
+routes = SpinelHTTP::Router.new
 routes.get "/", Name.new("root")
 routes.get "/posts", Name.new("index")
 routes.get "/posts/new", Name.new("new")
@@ -29,6 +29,6 @@ routes.get "/pages/about/team", Name.new("team")
  "/posts/7", "/posts/7/edit", "/posts/7/comments/3", "/posts/7/comments",
  "/posts/7/comments/3/x", "/pages/about", "/pages/about/team", "/pages/about/x",
  "/nope", "/postsx", "/posts//edit"].each do |path|
-  r = HTTP::Testing.request(routes, "GET #{path}")
+  r = SpinelHTTP::Testing.request(routes, "GET #{path}")
   puts "#{path} -> #{r.status} #{r.body}"
 end
